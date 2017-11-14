@@ -130,8 +130,8 @@ public class DebugMessage {
     setTypeColor ("WARN",   TextColor.Orange, FontType.Bold);
     setTypeColor ("INFO",   TextColor.Black,  FontType.Normal);
     setTypeColor ("ENTRY",  TextColor.Brown,  FontType.Normal);
-    setTypeColor ("CALL",   TextColor.Orange, FontType.Normal);
-    setTypeColor ("RETURN", TextColor.Orange, FontType.Normal);
+    setTypeColor ("CALL",   TextColor.Gold,   FontType.Normal);
+    setTypeColor ("RETURN", TextColor.Gold,   FontType.Normal);
     setTypeColor ("STACK",  TextColor.Blue,   FontType.Normal);
     setTypeColor ("STACKS", TextColor.Blue,   FontType.Italic);
     setTypeColor ("STACKI", TextColor.Blue,   FontType.Bold);
