@@ -5,8 +5,11 @@
  */
 package debug;
 
-import java.io.*;
-import java.net.*;
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
+import java.io.IOException;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
 
 // provides callback interface
 interface MyListener{
@@ -31,9 +34,6 @@ public class ServerThread extends Thread implements MyListener {
     serverPort = port;
     socket = new DatagramSocket(serverPort);
     System.out.println("server started on port: " + serverPort);
-    
-    // create call graph panel
-    CallGraph.createCallGraphPanel("Call Graph");
 
     // create the debug message panel to direct messages to
     guipanel = new GuiPanel();
@@ -54,7 +54,7 @@ public class ServerThread extends Thread implements MyListener {
   public void run() {
     while (running) {
       try {
-        byte[] buf = new byte[256];
+        byte[] buf = new byte[1024];
  
         // receive message to display
         DatagramPacket packet = new DatagramPacket(buf, buf.length);
@@ -84,10 +84,9 @@ public class ServerThread extends Thread implements MyListener {
           else if (typestr.equals("RETURN")) {
             CallGraph.callGraphReturn(content);
           }
-//          else {
-            // the remainder goes to the debug message display
-            DebugMessage.print(count, tstamp, message.trim());
-//          }
+
+          // now send to the debug message display
+          DebugMessage.print(count, tstamp, message.trim());
         }
         
         // send the response to the client at "address" and "port"

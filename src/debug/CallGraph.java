@@ -7,17 +7,10 @@ package debug;
 
 import com.mxgraph.swing.mxGraphComponent;
 import com.mxgraph.view.mxGraph;
-import java.awt.BorderLayout;
-import java.awt.Dimension;
-import java.awt.Font;
 import java.awt.Graphics;
-import java.awt.Toolkit;
 import java.util.ArrayList;
 import java.util.List;
-import javax.swing.JFrame;
 import javax.swing.JPanel;
-import javax.swing.JScrollPane;
-import javax.swing.WindowConstants;
 
 /**
  *
@@ -25,50 +18,37 @@ import javax.swing.WindowConstants;
  */
 public class CallGraph {
   
-  private static JFrame           graphFrame;
-  private static JPanel           graphPanel;
-  private static Dimension        framesize;
+  private static JPanel           graphPanel = null;
   private static mxGraphComponent graphComponent = null;
   private static BaseGraph<MethodInfo> callGraph = null;
   private static List<MethodInfo> graphMethList = null;
-  private static final Dimension  SCREEN_DIM = Toolkit.getDefaultToolkit().getScreenSize();
   
-  /**
-   * creates a graph panel in which to display the call graph
-   * @param name
-   */  
-  public static void createCallGraphPanel(String name) {
+  public static void initCallGraph(JPanel panel) {
     CallGraph.graphMethList = new ArrayList<>();
     CallGraph.callGraph = new BaseGraph<>();
-    
-    // create the frame
-    CallGraph.framesize = new Dimension(1200, 600);
-    //CallGraph.framesize = Toolkit.getDefaultToolkit().getScreenSize();
-    CallGraph.graphFrame = new JFrame(name);
-    CallGraph.graphFrame.setSize(framesize);
-    CallGraph.graphFrame.setMinimumSize(framesize);
+    CallGraph.graphComponent = null;
+    CallGraph.graphPanel = panel;
+  }
 
-    // setup the layout for the frame
-    CallGraph.graphFrame.setFont(new Font("SansSerif", Font.PLAIN, 14));
-    CallGraph.graphFrame.setLayout(new BorderLayout());
+  public static void clear() {
+    CallGraph.graphMethList = new ArrayList<>();
+    CallGraph.callGraph = new BaseGraph<>();
+    CallGraph.graphComponent = null;
 
-    // add components
-    CallGraph.graphPanel = new JPanel();
-    JScrollPane scrollPanel = new JScrollPane(CallGraph.graphPanel);
-    CallGraph.graphFrame.add(scrollPanel, BorderLayout.CENTER);
-    CallGraph.graphFrame.pack();
-    
-    // display the frame
-    CallGraph.graphFrame.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
-    CallGraph.graphFrame.setLocationRelativeTo(null);
-    CallGraph.graphFrame.setVisible(true);
+    CallGraph.graphPanel.removeAll();
+    Graphics graphics = graphPanel.getGraphics();
+    if (graphics != null) {
+      graphPanel.update(graphics);
+    }
+
+    updateCallGraph();
   }
   
   /**
    * updates the call graph display
    */  
   private static void updateCallGraph() {
-    if (CallGraph.callGraph != null) {
+    if (CallGraph.callGraph != null && CallGraph.graphPanel != null) {
       mxGraph graph = CallGraph.callGraph.getGraph();
       if (graphComponent == null) {
         // first time through - create the graph component
@@ -82,14 +62,11 @@ public class CallGraph {
           graphPanel.update(graphics);
         }
       }
+
+      // update the graph layout
+      CallGraph.callGraph.layoutGraph();
+      GuiPanel.repackFrame();
     }
-    
-    // update the graph layout
-//    CallGraph.graphFrame.revalidate();
-//    CallGraph.graphFrame.repaint();
-    CallGraph.callGraph.layoutGraph();
-    CallGraph.graphFrame.pack();
-    CallGraph.graphFrame.setSize(framesize);
   }
   
   /**

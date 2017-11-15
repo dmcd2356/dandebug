@@ -41,19 +41,14 @@ public class DebugMessage {
   private static boolean   showHours = false;
   private static boolean   showMsecs = false;
   private static boolean   timeSet = false;
+  private static int       lastcount = 0;
   private static HashMap<String, FontInfo> messageTypeTbl = new HashMap<>();
 
   public DebugMessage (JTextPane textpane) {
-    debugTextPane = textpane; // default to outputting on stdout
-      
-    // if panel was passed, set it up
-    if (textpane != null) {
-      // setup message type colors
-      setColors();
-      
-      // enable display of time and type
-      showMsecs = true;
-    }
+    debugTextPane = textpane;
+    setColors();
+    showMsecs = true;
+    showHours = false;
   }
 
   /**
@@ -70,6 +65,7 @@ public class DebugMessage {
     if (debugTextPane != null) {
       debugTextPane.setText("");
     }
+    timeSet = false; // this will cause the start time to reset on the next msg received
   }
 
   /**
@@ -94,19 +90,32 @@ public class DebugMessage {
    * @param message - the message to display
    */
   public static final void print(int count, long tstamp, String message) {
-    
-    String elapsed = "[" + getElapsedTime(tstamp) + "] ";
-    
+    if (debugTextPane == null) {
+      return;
+    }
+
     if (message != null && !message.isEmpty()) {
-      if (debugTextPane == null) {
-        System.out.println(elapsed + message);
-        return;
+      // format the elapsed time value
+      String elapsed = "[" + getElapsedTime(tstamp) + "] ";
+
+      // format the packet counter info
+      String countstr = "00000000" + count;
+      countstr = countstr.substring(countstr.length() - 8);
+      
+      // verify packet counter is consecutive
+      if (timeSet && count > lastcount + 1 && count != 0) {
+        printRaw("INFO", "-------- ");
+        printRaw("TSTAMP", elapsed);
+        printRaw("ERROR", "Lost packets: " + (count - lastcount - 1) + NEWLINE);
       }
-        
+      lastcount = count;
+      
       // extract type from message
       String typestr = message.substring(0, 6).toUpperCase().trim();
-        
+      
+      // print message (seperate into multiple lines if ASCII newlines are contained in it)
       if (!message.contains(NEWLINE)) {
+        printRaw("INFO", countstr + " ");
         printRaw("TSTAMP", elapsed);
         printRaw(typestr, message + NEWLINE);
       }
@@ -114,6 +123,7 @@ public class DebugMessage {
         // seperate into lines and print each independantly
         String[] msgarray = message.split(NEWLINE);
         for (String msg : msgarray) {
+          printRaw("INFO", countstr + " ");
           printRaw("TSTAMP", elapsed);
           printRaw(typestr, msg + NEWLINE);
         }
