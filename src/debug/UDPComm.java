@@ -20,7 +20,9 @@ public class UDPComm {
    * @throws java.io.IOException
    */
   public static void main(String[] args) throws IOException {
-    new ServerThread(SERVER_PORT).start();
+    // start the debug message panel
+    GuiPanel gui = new GuiPanel();
+    gui.createDebugPanel();
   }
   
 }

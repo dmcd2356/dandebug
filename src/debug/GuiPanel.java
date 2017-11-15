@@ -5,15 +5,15 @@
  */
 package debug;
 
+import static debug.UDPComm.SERVER_PORT;
 import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.Font;
-import java.awt.Graphics;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
-import java.awt.Image;
 import java.awt.Insets;
 import java.awt.Toolkit;
+import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.File;
 import java.io.IOException;
@@ -33,6 +33,7 @@ import javax.swing.JSpinner;
 import javax.swing.JTabbedPane;
 import javax.swing.JTextPane;
 import javax.swing.SpinnerNumberModel;
+import javax.swing.Timer;
 import javax.swing.WindowConstants;
 import org.apache.commons.io.FileUtils;
 
@@ -42,34 +43,34 @@ import org.apache.commons.io.FileUtils;
  */
 public class GuiPanel {
 
-  final static private String NEWLINE = System.getProperty("line.separator");
-
   final static private int GAPSIZE = 4; // gap size to place on each side of each widget
   
   public enum Orient { NONE, LEFT, RIGHT, CENTER }
 
-  private static String     jarfileName;
-  private static JFrame     mainFrame;
-  private static JTextPane  debugTextPane;
-  private static JPanel     graphPanel;
-  private static JFileChooser fileSelector;
-  private static Dimension  framesize;
-  private static MyListener listener;
+  private static String         jarfileName;
+  private static JFrame         mainFrame;
+  private static JTextPane      debugTextPane;
+  private static JPanel         graphPanel;
+  private static JFileChooser   fileSelector;
+  private static Dimension      framesize;
+  private static ServerThread   udpThread;
+  private static MyListener     listener;
+  private static PacketListener pktListener;
+  private static Timer          pktTimer;
   
-  private static final Dimension  SCREEN_DIM = Toolkit.getDefaultToolkit().getScreenSize();
+  private static final Dimension SCREEN_DIM = Toolkit.getDefaultToolkit().getScreenSize();
     
 /**
  * creates a debug panel to display the DebugMessage messages in.
-   * @param name - name of panel
  */  
-  public static void createDebugPanel(String name) {
+  public void createDebugPanel() {
     if (GuiPanel.mainFrame != null) {
       GuiPanel.mainFrame.dispose();
     }
 
     // create the frame
-    framesize = new Dimension(1000, 600);
-    GuiPanel.mainFrame = new JFrame(name);
+    framesize = new Dimension(1200, 600);
+    GuiPanel.mainFrame = new JFrame("dandebug");
     GuiPanel.mainFrame.setSize(framesize);
     GuiPanel.mainFrame.setMinimumSize(framesize);
 
@@ -82,8 +83,9 @@ public class GuiPanel {
     GuiPanel.fileSelector = new JFileChooser();
 
     // add the components
-    JButton saveButton = makeButton(GuiPanel.mainFrame, gbag, GuiPanel.Orient.CENTER, false, "Save");
-    JButton clearButton = makeButton(GuiPanel.mainFrame, gbag, GuiPanel.Orient.CENTER, true, "Clear");
+    JButton clearButton = makeButton(GuiPanel.mainFrame, gbag, GuiPanel.Orient.LEFT, false, "Clear");
+    JButton pauseButton = makeButton(GuiPanel.mainFrame, gbag, GuiPanel.Orient.LEFT, false, "Pause");
+    JButton saveButton  = makeButton(GuiPanel.mainFrame, gbag, GuiPanel.Orient.CENTER, true, "Save");
 
     // add a tabbed panel to it
     JTabbedPane tabPanel = new JTabbedPane();
@@ -121,6 +123,18 @@ public class GuiPanel {
         CallGraph.clear();
       }
     });
+    pauseButton.addActionListener(new ActionListener() {
+      @Override
+      public void actionPerformed(java.awt.event.ActionEvent evt) {
+        if (pauseButton.getText().equals("Pause")) {
+          pktTimer.stop();
+          pauseButton.setText("Resume");
+        } else {
+          pktTimer.start();
+          pauseButton.setText("Pause");
+        }
+      }
+    });
 
     // display the frame
     GuiPanel.mainFrame.pack();
@@ -133,8 +147,30 @@ public class GuiPanel {
 
     // pass the graph panel to CallGraph for it to use
     CallGraph.initCallGraph(GuiPanel.graphPanel);
+    
+    // start the UDP listener
+    try {
+      GuiPanel.udpThread = new ServerThread(SERVER_PORT);
+      GuiPanel.udpThread.start();
+      GuiPanel.listener = GuiPanel.udpThread;
+    } catch (IOException ex) {
+      System.out.println(ex.getMessage());
+      System.exit(1);
+    }
+
+    // create a timer for reading and displaying the messages received
+    GuiPanel.pktListener = new PacketListener();
+    pktTimer = new Timer(5, GuiPanel.pktListener);
+    pktTimer.start();
   }
   
+  private class PacketListener implements ActionListener {
+    @Override
+    public void actionPerformed(ActionEvent e) {
+      GuiPanel.udpThread.getNextPacket();
+    }
+  }
+
   public static void repackFrame() {
 //    GuiPanel.mainFrame.revalidate();
 //    GuiPanel.mainFrame.repaint();
@@ -167,10 +203,6 @@ public class GuiPanel {
     listener.exit();
   }
   
-  public void addListener(MyListener action) {
-    listener = action;
-  }
-
   /**
    * this sets up the gridbag constraints for a single panel to fill the container
    * 

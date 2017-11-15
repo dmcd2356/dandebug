@@ -95,6 +95,8 @@ public class DebugMessage {
     }
 
     if (message != null && !message.isEmpty()) {
+      boolean bNotFirst = timeSet;
+      
       // format the elapsed time value
       String elapsed = "[" + getElapsedTime(tstamp) + "] ";
 
@@ -103,7 +105,7 @@ public class DebugMessage {
       countstr = countstr.substring(countstr.length() - 8);
       
       // verify packet counter is consecutive
-      if (timeSet && count > lastcount + 1 && count != 0) {
+      if (bNotFirst && count > lastcount + 1 && count != 0) {
         printRaw("INFO", "-------- ");
         printRaw("TSTAMP", elapsed);
         printRaw("ERROR", "Lost packets: " + (count - lastcount - 1) + NEWLINE);
