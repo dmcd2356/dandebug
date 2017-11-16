@@ -131,7 +131,9 @@ public class GuiPanel {
       @Override
       public void stateChanged(ChangeEvent e) {
         if (GuiPanel.tabPanel.getSelectedIndex() == 1) {
-          CallGraph.updateCallGraph();
+          if (CallGraph.updateCallGraph()) {
+            repackFrame();
+          }
         }
       }
     });
@@ -197,6 +199,18 @@ public class GuiPanel {
     GuiPanel.pktListener = new PacketListener();
     pktTimer = new Timer(5, GuiPanel.pktListener);
     pktTimer.start();
+
+    // create a slow timer for updating the call graph
+    Timer graphTimer = new Timer(1000, new GraphUpdateListener());
+    graphTimer.start();
+  }
+  
+  public static boolean isDebugMsgTabSelected() {
+    return GuiPanel.tabPanel.getSelectedIndex() == 0;
+  }
+  
+  public static boolean isCallGraphTabSelected() {
+    return GuiPanel.tabPanel.getSelectedIndex() == 1;
   }
   
   private class PacketListener implements ActionListener {
@@ -212,21 +226,23 @@ public class GuiPanel {
     }
   }
 
-  public static void repackFrame() {
-//    GuiPanel.mainFrame.revalidate();
-//    GuiPanel.mainFrame.repaint();
+  private class GraphUpdateListener implements ActionListener {
+    @Override
+    public void actionPerformed(ActionEvent e) {
+      // if Call Graph tab selected, update graph
+      if (isCallGraphTabSelected()) {
+        if (CallGraph.updateCallGraph()) {
+          repackFrame();
+        }
+      }
+    }
+  }
+
+  private static void repackFrame() {
     GuiPanel.mainFrame.pack();
     GuiPanel.mainFrame.setSize(framesize);
   }
 
-  public static boolean isDebugMsgTabSelected() {
-    return GuiPanel.tabPanel.getSelectedIndex() == 0;
-  }
-  
-  public static boolean isCallGraphTabSelected() {
-    return GuiPanel.tabPanel.getSelectedIndex() == 1;
-  }
-  
   private static void saveDebugButtonActionPerformed(java.awt.event.ActionEvent evt) {
     GuiPanel.fileSelector.setApproveButtonText("Save");
     GuiPanel.fileSelector.setMultiSelectionEnabled(false);

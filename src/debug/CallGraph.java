@@ -25,6 +25,7 @@ public class CallGraph {
   private static mxGraphComponent graphComponent = null;
   private static BaseGraph<MethodInfo> callGraph = null;
   private static List<MethodInfo> graphMethList = null;
+  private static boolean bUpdateNeeded = false;
   
   public static void initCallGraph(JPanel panel) {
     CallGraph.graphMethList = new ArrayList<>();
@@ -63,13 +64,16 @@ public class CallGraph {
   
   /**
    * updates the call graph display
+   * @return true if graph was updated
    */  
-  public static void updateCallGraph() {
+  public static boolean updateCallGraph() {
+    boolean updated = false;
     if (!GuiPanel.isCallGraphTabSelected()) {
-      return;
+      return updated;
     }
-    
-    if (CallGraph.callGraph != null && CallGraph.graphPanel != null) {
+    if (bUpdateNeeded && CallGraph.callGraph != null && CallGraph.graphPanel != null) {
+      bUpdateNeeded = false;
+
       mxGraph graph = CallGraph.callGraph.getGraph();
       if (graphComponent == null) {
         // first time through - create the graph component
@@ -86,8 +90,10 @@ public class CallGraph {
 
       // update the graph layout
       CallGraph.callGraph.layoutGraph();
-      GuiPanel.repackFrame();
+      updated = true;
     }
+
+    return updated;
   }
   
   /**
@@ -156,7 +162,7 @@ public class CallGraph {
     
     // update graph
     if (bUpdate) {
-      updateCallGraph();
+      bUpdateNeeded = true; // TODO: really needs to be locked
     }
   }
 

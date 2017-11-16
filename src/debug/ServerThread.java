@@ -93,6 +93,7 @@ public class ServerThread extends Thread implements MyListener {
         if (lastPktCount != 0 && count > lastPktCount + 1) {
           pktsLost += count - lastPktCount - 1;
         }
+        lastPktCount = count;
         
         // seperate message into the message type and the message content
         if (message.length() > 7) {
