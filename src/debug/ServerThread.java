@@ -12,8 +12,6 @@ import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.util.LinkedList;
 import java.util.Queue;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 // provides callback interface
 interface MyListener{
@@ -30,12 +28,20 @@ public class ServerThread extends Thread implements MyListener {
   private final int             serverPort;
   private Queue<DatagramPacket> recvBuffer;
   private boolean               running;
+  private static int            pktsRead;
+  private static int            pktsLost;
+  private static int            lastPktCount;
 
   public ServerThread(int port) throws IOException {
     super("ServerThread");
     
     serverPort = port;
     try {
+      // init statistics
+      lastPktCount = 0;
+      pktsRead = 0;
+      pktsLost = 0;
+
       // open the communications socket
       socket = new DatagramSocket(serverPort);
       System.out.println("server started on port: " + serverPort);
@@ -48,6 +54,26 @@ public class ServerThread extends Thread implements MyListener {
       System.out.println(ex.getMessage());
       System.exit(1);
     }
+  }
+
+  public void clear() {
+      // reset statistics and empty the buffer
+      lastPktCount = 0;
+      pktsRead = 0;
+      pktsLost = 0;
+      recvBuffer.clear();
+  }
+  
+  public int getBufferSize() {
+    return recvBuffer.size();
+  }
+  
+  public int getPktsRead() {
+    return pktsRead;
+  }
+  
+  public int getPktsLost() {
+    return pktsLost;
   }
   
   public void getNextPacket() {
@@ -62,6 +88,11 @@ public class ServerThread extends Thread implements MyListener {
         int count = dataIn.readInt();
         long tstamp = dataIn.readLong();
         String message = dataIn.readUTF();
+        
+        // keep track of loas packets (we'll skip searching for out-of-order packets for now)
+        if (lastPktCount != 0 && count > lastPktCount + 1) {
+          pktsLost += count - lastPktCount - 1;
+        }
         
         // seperate message into the message type and the message content
         if (message.length() > 7) {
@@ -82,13 +113,15 @@ public class ServerThread extends Thread implements MyListener {
           
           // now send to the debug message display
           DebugMessage.print(count, tstamp, message.trim());
+          
+          ++pktsRead;
         }
       } catch (IOException ex) {
         System.out.println(ex.getMessage());
       }
     }
   }
-  
+
   /**
    * this is the callback to run when exiting
    */

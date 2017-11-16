@@ -64,7 +64,11 @@ public class CallGraph {
   /**
    * updates the call graph display
    */  
-  private static void updateCallGraph() {
+  public static void updateCallGraph() {
+    if (!GuiPanel.isCallGraphTabSelected()) {
+      return;
+    }
+    
     if (CallGraph.callGraph != null && CallGraph.graphPanel != null) {
       mxGraph graph = CallGraph.callGraph.getGraph();
       if (graphComponent == null) {

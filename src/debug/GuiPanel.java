@@ -9,17 +9,14 @@ import static debug.UDPComm.SERVER_PORT;
 import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.Font;
-import java.awt.Graphics;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.awt.Toolkit;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
-import javax.imageio.ImageIO;
 import javax.swing.BorderFactory;
 import javax.swing.DefaultListModel;
 import javax.swing.JButton;
@@ -34,10 +31,13 @@ import javax.swing.JRadioButton;
 import javax.swing.JScrollPane;
 import javax.swing.JSpinner;
 import javax.swing.JTabbedPane;
+import javax.swing.JTextField;
 import javax.swing.JTextPane;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.Timer;
 import javax.swing.WindowConstants;
+import javax.swing.event.ChangeEvent;
+import javax.swing.event.ChangeListener;
 import org.apache.commons.io.FileUtils;
 
 /**
@@ -51,8 +51,12 @@ public class GuiPanel {
   public enum Orient { NONE, LEFT, RIGHT, CENTER }
 
   private static JFrame         mainFrame;
+  private static JTabbedPane    tabPanel;
   private static JTextPane      debugTextPane;
   private static JPanel         graphPanel;
+  private static JTextField     pktsBuffered;
+  private static JTextField     pktsRead;
+  private static JTextField     pktsLost;
   private static JFileChooser   fileSelector;
   private static Dimension      framesize;
   private static ServerThread   udpThread;
@@ -85,32 +89,50 @@ public class GuiPanel {
     GuiPanel.fileSelector = new JFileChooser();
 
     // add the components
-    JButton clearButton = makeButton(GuiPanel.mainFrame, gbag, GuiPanel.Orient.LEFT, false, "Clear");
-    JButton pauseButton = makeButton(GuiPanel.mainFrame, gbag, GuiPanel.Orient.LEFT, false, "Pause");
-    JButton saveTextButton = makeButton(GuiPanel.mainFrame, gbag, GuiPanel.Orient.LEFT, false, "Save Text");
-    JButton saveGrphButton = makeButton(GuiPanel.mainFrame, gbag, GuiPanel.Orient.LEFT, true, "Save Graph");
+    GuiPanel.pktsBuffered = makeTextField(GuiPanel.mainFrame, gbag, GuiPanel.Orient.LEFT, false,
+        "Buffer", "------", false);
+    GuiPanel.pktsRead = makeTextField(GuiPanel.mainFrame, gbag, GuiPanel.Orient.LEFT, false,
+        "Pkts Read", "------", false);
+    GuiPanel.pktsLost = makeTextField(GuiPanel.mainFrame, gbag, GuiPanel.Orient.LEFT, true,
+        "Pkts Lost", "------", false);
+    JButton clearButton = makeButton(GuiPanel.mainFrame, gbag, GuiPanel.Orient.LEFT, false,
+        "Clear");
+    JButton pauseButton = makeButton(GuiPanel.mainFrame, gbag, GuiPanel.Orient.LEFT, false,
+        "Pause");
+    JButton saveTextButton = makeButton(GuiPanel.mainFrame, gbag, GuiPanel.Orient.LEFT, false,
+        "Save Text");
+    JButton saveGrphButton = makeButton(GuiPanel.mainFrame, gbag, GuiPanel.Orient.LEFT, true,
+        "Save Graph");
 
     // add a tabbed panel to it
-    JTabbedPane tabPanel = new JTabbedPane();
-    gbag.setConstraints(tabPanel, setGbagConstraintsPanel());
-    GuiPanel.mainFrame.add(tabPanel);
+    GuiPanel.tabPanel = new JTabbedPane();
+    gbag.setConstraints(GuiPanel.tabPanel, setGbagConstraintsPanel());
+    GuiPanel.mainFrame.add(GuiPanel.tabPanel);
     
     // add the debug message panel to the tabs
     GuiPanel.debugTextPane = new JTextPane();
     JScrollPane fileScrollPanel = new JScrollPane(GuiPanel.debugTextPane);
     fileScrollPanel.setBorder(BorderFactory.createTitledBorder(""));
-    tabPanel.addTab("Debug Messages", fileScrollPanel);
+    GuiPanel.tabPanel.addTab("Debug Messages", fileScrollPanel);
 
     // add the CallGraph panel to the tabs
     GuiPanel.graphPanel = new JPanel();
     JScrollPane graphScrollPanel = new JScrollPane(GuiPanel.graphPanel);
-    tabPanel.addTab("Call Graph", graphScrollPanel);
-    
+    GuiPanel.tabPanel.addTab("Call Graph", graphScrollPanel);
+
     // setup the control actions
     GuiPanel.mainFrame.addWindowListener(new java.awt.event.WindowAdapter() {
       @Override
       public void windowClosing(java.awt.event.WindowEvent evt) {
         formWindowClosing(evt);
+      }
+    });
+    GuiPanel.tabPanel.addChangeListener(new ChangeListener() {
+      @Override
+      public void stateChanged(ChangeEvent e) {
+        if (GuiPanel.tabPanel.getSelectedIndex() == 1) {
+          CallGraph.updateCallGraph();
+        }
       }
     });
     saveTextButton.addActionListener(new ActionListener() {
@@ -130,6 +152,10 @@ public class GuiPanel {
       public void actionPerformed(java.awt.event.ActionEvent evt) {
         DebugMessage.clear();
         CallGraph.clear();
+        udpThread.clear();
+        GuiPanel.pktsBuffered.setText("------");
+        GuiPanel.pktsRead.setText("------");
+        GuiPanel.pktsLost.setText("------");
       }
     });
     pauseButton.addActionListener(new ActionListener() {
@@ -176,7 +202,13 @@ public class GuiPanel {
   private class PacketListener implements ActionListener {
     @Override
     public void actionPerformed(ActionEvent e) {
+      // read & process next packet
       GuiPanel.udpThread.getNextPacket();
+
+      // update statistics
+      GuiPanel.pktsBuffered.setText("" + GuiPanel.udpThread.getBufferSize());
+      GuiPanel.pktsRead.setText("" + GuiPanel.udpThread.getPktsRead());
+      GuiPanel.pktsLost.setText("" + GuiPanel.udpThread.getPktsLost());
     }
   }
 
@@ -187,6 +219,14 @@ public class GuiPanel {
     GuiPanel.mainFrame.setSize(framesize);
   }
 
+  public static boolean isDebugMsgTabSelected() {
+    return GuiPanel.tabPanel.getSelectedIndex() == 0;
+  }
+  
+  public static boolean isCallGraphTabSelected() {
+    return GuiPanel.tabPanel.getSelectedIndex() == 1;
+  }
+  
   private static void saveDebugButtonActionPerformed(java.awt.event.ActionEvent evt) {
     GuiPanel.fileSelector.setApproveButtonText("Save");
     GuiPanel.fileSelector.setMultiSelectionEnabled(false);
@@ -383,6 +423,33 @@ public class GuiPanel {
     gridbag.setConstraints(cbox, setGbagConstraints(pos, end));
     container.add(cbox);
     return cbox;
+  }
+
+  /**
+   * This creates a JTextField and places it in the container.
+   * These are single line String displays.
+   * 
+   * @param container - the container to place the component in (e.g. JFrame or JPanel)
+   * @param gridbag - the layout info
+   * @param pos     - orientatition on the line: LEFT, RIGHT or CENTER
+   * @param end     - true if this is last widget in the line
+   * @param name    - the name to display as a label preceeding the widget
+   * @param value   - 0 to have checkbox initially unselected, any other value for selected
+   * @param writable - true if field is writable by user, false if display only
+   * @return the checkbox widget
+   */
+  private static JTextField makeTextField(Container container, GridBagLayout gridbag, Orient pos,
+                                 boolean end, String name, String value, boolean writable) {
+    // insert a label before the component
+    GridBagConstraints c = setGbagInsertLabel(container, gridbag, pos, end, true, name);
+    
+    JTextField field = new JTextField();
+    field.setText(value);
+    field.setPreferredSize(new Dimension(100, 25));
+    field.setEditable(writable);
+    gridbag.setConstraints(field, c);
+    container.add(field);
+    return field;
   }
 
   /**
