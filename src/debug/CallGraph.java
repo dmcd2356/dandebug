@@ -8,8 +8,11 @@ package debug;
 import com.mxgraph.swing.mxGraphComponent;
 import com.mxgraph.view.mxGraph;
 import java.awt.Graphics;
+import java.awt.image.BufferedImage;
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import javax.imageio.ImageIO;
 import javax.swing.JPanel;
 
 /**
@@ -42,6 +45,20 @@ public class CallGraph {
     }
 
     updateCallGraph();
+  }
+  
+  public static void saveImageAsFile(String name) {
+    BufferedImage bi = new BufferedImage(CallGraph.graphPanel.getSize().width,
+      CallGraph.graphPanel.getSize().height, BufferedImage.TYPE_INT_ARGB); 
+    Graphics graphics = bi.createGraphics();
+//    Graphics graphics = graphPanel.getGraphics();
+    CallGraph.graphPanel.paint(graphics);
+    graphics.dispose();
+    try {
+      ImageIO.write(bi,"png",new File(name));
+    } catch (Exception ex) {
+      System.err.println(ex.getMessage());
+    }
   }
   
   /**

@@ -9,14 +9,17 @@ import static debug.UDPComm.SERVER_PORT;
 import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.Font;
+import java.awt.Graphics;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.awt.Toolkit;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import javax.imageio.ImageIO;
 import javax.swing.BorderFactory;
 import javax.swing.DefaultListModel;
 import javax.swing.JButton;
@@ -47,7 +50,6 @@ public class GuiPanel {
   
   public enum Orient { NONE, LEFT, RIGHT, CENTER }
 
-  private static String         jarfileName;
   private static JFrame         mainFrame;
   private static JTextPane      debugTextPane;
   private static JPanel         graphPanel;
@@ -85,7 +87,8 @@ public class GuiPanel {
     // add the components
     JButton clearButton = makeButton(GuiPanel.mainFrame, gbag, GuiPanel.Orient.LEFT, false, "Clear");
     JButton pauseButton = makeButton(GuiPanel.mainFrame, gbag, GuiPanel.Orient.LEFT, false, "Pause");
-    JButton saveButton  = makeButton(GuiPanel.mainFrame, gbag, GuiPanel.Orient.CENTER, true, "Save");
+    JButton saveTextButton = makeButton(GuiPanel.mainFrame, gbag, GuiPanel.Orient.LEFT, false, "Save Text");
+    JButton saveGrphButton = makeButton(GuiPanel.mainFrame, gbag, GuiPanel.Orient.LEFT, true, "Save Graph");
 
     // add a tabbed panel to it
     JTabbedPane tabPanel = new JTabbedPane();
@@ -110,10 +113,16 @@ public class GuiPanel {
         formWindowClosing(evt);
       }
     });
-    saveButton.addActionListener(new ActionListener() {
+    saveTextButton.addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(java.awt.event.ActionEvent evt) {
         saveDebugButtonActionPerformed(evt);
+      }
+    });
+    saveGrphButton.addActionListener(new ActionListener() {
+      @Override
+      public void actionPerformed(java.awt.event.ActionEvent evt) {
+        saveGraphButtonActionPerformed(evt);
       }
     });
     clearButton.addActionListener(new ActionListener() {
@@ -181,7 +190,7 @@ public class GuiPanel {
   private static void saveDebugButtonActionPerformed(java.awt.event.ActionEvent evt) {
     GuiPanel.fileSelector.setApproveButtonText("Save");
     GuiPanel.fileSelector.setMultiSelectionEnabled(false);
-    String defaultFile = GuiPanel.jarfileName.replace(".jar", ".log");
+    String defaultFile = "debug.log";
     GuiPanel.fileSelector.setSelectedFile(new File(defaultFile));
     int retVal = GuiPanel.fileSelector.showOpenDialog(GuiPanel.mainFrame);
     if (retVal == JFileChooser.APPROVE_OPTION) {
@@ -196,6 +205,23 @@ public class GuiPanel {
       } catch (IOException ex) {
         System.err.println(ex.getMessage());
       }
+    }
+  }
+  
+  private static void saveGraphButtonActionPerformed(java.awt.event.ActionEvent evt) {
+    GuiPanel.fileSelector.setApproveButtonText("Save");
+    GuiPanel.fileSelector.setMultiSelectionEnabled(false);
+    String defaultFile = "callgraph.png";
+    GuiPanel.fileSelector.setSelectedFile(new File(defaultFile));
+    int retVal = GuiPanel.fileSelector.showOpenDialog(GuiPanel.mainFrame);
+    if (retVal == JFileChooser.APPROVE_OPTION) {
+      // copy debug text to specified file
+      String content = GuiPanel.debugTextPane.getText();
+
+      // output to the file
+      File file = GuiPanel.fileSelector.getSelectedFile();
+      file.delete();
+      CallGraph.saveImageAsFile(file.getAbsolutePath());
     }
   }
   
