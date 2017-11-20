@@ -20,8 +20,6 @@ import javax.swing.text.StyleContext;
  */
 public class DebugMessage {
     
-  public static final boolean PRINT_TO_STDOUT = true; // set to false to create a panel for msgs
-
   public enum FontType {
     Normal, Bold, Italic, BoldItalic;
   }
@@ -31,10 +29,7 @@ public class DebugMessage {
     LtBlue, Blue, Violet, DkVio;
   }
     
-  // used in formatting printArray
-  private final static char[] HEXARRAY = "0123456789ABCDEF".toCharArray();
-    
-  private static final String NEWLINE = System.getProperty("line.separator");
+  public static final String NEWLINE = System.getProperty("line.separator");
 
   private static JTextPane debugTextPane;
   private static long      startTime = System.currentTimeMillis(); // get the start time

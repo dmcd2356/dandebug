@@ -5,14 +5,19 @@
  */
 package debug;
 
+import com.mxgraph.model.mxCell;
+import com.mxgraph.swing.handler.mxGraphHandler;
 import com.mxgraph.swing.mxGraphComponent;
 import com.mxgraph.view.mxGraph;
 import java.awt.Graphics;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import javax.imageio.ImageIO;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 
 /**
@@ -79,6 +84,24 @@ public class CallGraph {
         // first time through - create the graph component
         graphComponent = new mxGraphComponent(graph);
         graphComponent.setConnectable(false);
+        
+        // add listener to show details of selected element
+        graphComponent.getGraphControl().addMouseListener(new MouseAdapter() {
+          @Override
+          public void mouseReleased(MouseEvent e) {
+            mxGraphHandler handler = graphComponent.getGraphHandler();
+            mxCell cell = (mxCell) handler.getGraphComponent().getCellAt(e.getX(), e.getY());
+            if (cell != null && cell.isVertex()) {
+              MethodInfo selected = CallGraph.callGraph.getSelectedNode();
+              JOptionPane.showMessageDialog (null,
+                  "Method:   " + selected.getFullName() + DebugMessage.NEWLINE +
+                  "Count:    " + selected.getCount() + DebugMessage.NEWLINE +
+                  "Duration: " + selected.getDuration(),
+                  "Method Info",
+                  JOptionPane.INFORMATION_MESSAGE);
+            }
+          }
+        });
         CallGraph.graphPanel.add(graphComponent);
       } else {
         // otherwise, just update the contents of the graph component

@@ -5,6 +5,7 @@
  */
 package debug;
 
+import com.mxgraph.swing.mxGraphComponent;
 import static debug.UDPComm.SERVER_PORT;
 import java.awt.Container;
 import java.awt.Dimension;
@@ -15,6 +16,8 @@ import java.awt.Insets;
 import java.awt.Toolkit;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.io.File;
 import java.io.IOException;
 import javax.swing.BorderFactory;
@@ -26,6 +29,7 @@ import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JList;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JRadioButton;
 import javax.swing.JScrollPane;
