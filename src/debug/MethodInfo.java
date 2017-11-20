@@ -16,7 +16,6 @@ public class MethodInfo {
   private int     count;
   private long    duration_ms;
   private long    start_ref;
-  private boolean running;
   
   private static final String NEWLINE = System.getProperty("line.separator");
 
@@ -43,14 +42,13 @@ public class MethodInfo {
     count = 1;
     duration_ms = 0;
     start_ref = System.currentTimeMillis();
-    running = true;
+    //System.out.println("start time: " + start_ref + " (init) - " + fullName);
   }
   
   public void incCount() {
-    if (!running) {
-      ++count;
-      start_ref = System.currentTimeMillis();
-    }
+    ++count;
+    start_ref = System.currentTimeMillis();
+    //System.out.println("start time: " + start_ref + ", count " + count + " - " +  fullName);
   }
   
   public void exit() {
@@ -59,7 +57,7 @@ public class MethodInfo {
     if (elapsedTime > 0) {
       duration_ms += elapsedTime;
     }
-    running = false;
+    //System.out.println("exit time: " + currentTime + ", elapsed " + duration_ms + " - " +  fullName);
   }
   
   public String getFullName() {

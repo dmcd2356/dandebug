@@ -524,16 +524,17 @@ public class GuiPanel {
    * @param name    - the name to display as a label preceeding the widget
    * @param minval  - the min range limit for the spinner
    * @param maxval  - the max range limit for the spinner
+   * @param step    - step size for the spinner
    * @param curval  - the current value for the spinner
    * @return the spinner widget
    */
   private static JSpinner makeSpinner(Container container, GridBagLayout gridbag, Orient pos,
-                          boolean end, String name, int minval, int maxval, int curval) {
+                          boolean end, String name, int minval, int maxval, int step, int curval) {
     // insert a label before the component
     GridBagConstraints c = setGbagInsertLabel(container, gridbag, pos, end, false, name);
 
     JSpinner spinner = new JSpinner();
-    spinner.setModel(new SpinnerNumberModel(curval, minval, maxval, 1)); // set step size = 1
+    spinner.setModel(new SpinnerNumberModel(curval, minval, maxval, step));
     gridbag.setConstraints(spinner, c);
     container.add(spinner);
     return spinner;

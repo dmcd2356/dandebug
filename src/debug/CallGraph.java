@@ -168,10 +168,11 @@ public class CallGraph {
       }
       //System.out.println("AddMethod: (" + mthNode.getCount() + ") " + mthNode.getClassAndMethod() +
       //    ", parent = " + parNode.getClassAndMethod());
-    } else {
-      //System.out.println("AddMethod: (" + mthNode.getCount() + ") " + mthNode.getClassAndMethod() +
-      //    ", (no parent)");
     }
+    //else {
+    //  System.out.println("AddMethod: (" + mthNode.getCount() + ") " + mthNode.getClassAndMethod() +
+    //      ", (no parent)");
+    //}
 
     // add node (if not previously defined) and/or edge (if parent defined) to graph
     if (newnode) {
@@ -195,12 +196,13 @@ public class CallGraph {
    * @param method - the full name of the method that is exiting
    */  
   public static void callGraphReturn(String method) {
-    if (CallGraph.graphMethList == null) {
+    if (CallGraph.graphMethList == null || method == null) {
       //System.out.println("Return: " + method + " - NOT FOUND!");
       return;
     }
     
     // find method entry in list
+    method = method.trim();
     for (int ix = 0; ix < CallGraph.graphMethList.size(); ix++) {
       if (CallGraph.graphMethList.get(ix).getFullName().equals(method)) {
         MethodInfo mthNode = CallGraph.graphMethList.get(ix);
