@@ -26,6 +26,8 @@ import javax.swing.JPanel;
  */
 public class CallGraph {
   
+  private static final String NEWLINE = System.getProperty("line.separator");
+
   private static JPanel           graphPanel = null;
   private static mxGraphComponent graphComponent = null;
   private static BaseGraph<MethodInfo> callGraph = null;
@@ -94,8 +96,8 @@ public class CallGraph {
             if (cell != null && cell.isVertex()) {
               MethodInfo selected = CallGraph.callGraph.getSelectedNode();
               JOptionPane.showMessageDialog (null,
-                  "Method:   " + selected.getFullName() + DebugMessage.NEWLINE +
-                  "Count:    " + selected.getCount() + DebugMessage.NEWLINE +
+                  "Method:   " + selected.getFullName() + NEWLINE +
+                  "Count:    " + selected.getCount() + NEWLINE +
                   "Duration: " + selected.getDuration(),
                   "Method Info",
                   JOptionPane.INFORMATION_MESSAGE);

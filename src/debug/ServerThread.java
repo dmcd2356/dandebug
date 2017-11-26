@@ -5,13 +5,22 @@
  */
 package debug;
 
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.util.LinkedList;
 import java.util.Queue;
+import javax.swing.Timer;
 
 // provides callback interface
 interface MyListener{
@@ -22,15 +31,20 @@ interface MyListener{
  *
  * @author dan
  */
-public class ServerThread extends Thread implements MyListener {
+public final class ServerThread extends Thread implements MyListener {
  
-  protected DatagramSocket      socket = null;
-  private final int             serverPort;
-  private Queue<DatagramPacket> recvBuffer;
-  private boolean               running;
-  private static int            pktsRead;
-  private static int            pktsLost;
-  private static int            lastPktCount;
+  private static final String BUFFER_FILE_NAME = "debug.log";
+  
+  protected DatagramSocket  socket = null;
+  private final int         serverPort;
+  private Queue<DatagramPacket>  recvBuffer;
+  private BufferedReader    bufferedReader;
+  private BufferedWriter    bufferedWriter;
+  private boolean           running;
+  private static int        pktsRead;
+  private static int        pktsLost;
+  private static int        lastPktCount;
+  private static Timer      fileTimer;
 
   public ServerThread(int port) throws IOException {
     super("ServerThread");
@@ -38,7 +52,7 @@ public class ServerThread extends Thread implements MyListener {
     serverPort = port;
     try {
       // init statistics
-      lastPktCount = 0;
+      lastPktCount = -1;
       pktsRead = 0;
       pktsLost = 0;
 
@@ -46,8 +60,19 @@ public class ServerThread extends Thread implements MyListener {
       socket = new DatagramSocket(serverPort);
       System.out.println("server started on port: " + serverPort);
 
-      // create the receive buffer to hold the messages
+      // create file to hold the data from receive buffer (so we don't use too much memory)
+      setOutputFile(BUFFER_FILE_NAME);
+      
+      // set up file for gui to read from (same file)
+      setInputFile(BUFFER_FILE_NAME);
+      
+      // create the receive buffer to hold the messages read from the port
       recvBuffer = new LinkedList<>();
+
+      // create a timer for copying the buffer data to a file
+      fileTimer = new Timer(1, new ServerThread.CopyToFileListener());
+      fileTimer.start();
+
       running = true;
     } catch (Exception ex) {
       System.out.println("port " + serverPort + "failed to start");
@@ -56,12 +81,32 @@ public class ServerThread extends Thread implements MyListener {
     }
   }
 
+  private class CopyToFileListener implements ActionListener {
+    @Override
+    public void actionPerformed(ActionEvent e) {
+      // if backup file is available, save current buffer info to it
+      if (bufferedWriter != null && !recvBuffer.isEmpty()) {
+        try {
+          // read packet from buffer & convert to message
+          DatagramPacket packet = recvBuffer.remove();
+          String message = extractMessageFromPacket(packet);
+
+          bufferedWriter.write(message + System.getProperty("line.separator"));
+          bufferedWriter.flush();
+        } catch (IOException ex) {
+          System.out.println(ex.getMessage());
+        }
+      }
+    }
+  }
+
   public void clear() {
       // reset statistics and empty the buffer
-      lastPktCount = 0;
+      lastPktCount = -1;
       pktsRead = 0;
       pktsLost = 0;
       recvBuffer.clear();
+      // TODO: flush the bufferedReader
   }
   
   public int getBufferSize() {
@@ -76,59 +121,117 @@ public class ServerThread extends Thread implements MyListener {
     return pktsLost;
   }
   
-  public void getNextPacket() {
-    if (!recvBuffer.isEmpty()) {
+  public String getNextMessage() {
+    if (bufferedReader != null) {
       try {
-        DatagramPacket packet = recvBuffer.remove();
-        
-        // send message to debug panel
-        byte[] bytes = packet.getData();
-        ByteArrayInputStream byteIn = new ByteArrayInputStream(bytes);
-        DataInputStream dataIn = new DataInputStream(byteIn);
-        int count = dataIn.readInt();
-        long tstamp = dataIn.readLong();
-        String message = dataIn.readUTF();
-        
-        // keep track of loas packets (we'll skip searching for out-of-order packets for now)
-        if (lastPktCount != 0 && count > lastPktCount + 1) {
-          pktsLost += count - lastPktCount - 1;
-        }
-        lastPktCount = count;
-        
-        // seperate message into the message type and the message content
-        if (message.length() > 7) {
-          String typestr = message.substring(0, 6).trim();
-          String content = message.substring(7);
-          // send CALL & RETURN info to CallGraph
-          if (typestr.equals("CALL")) {
-            int offset = content.indexOf('|');
-            if (offset > 0) {
-              String method = content.substring(0, offset).trim();
-              String parent = content.substring(offset + 1).trim();
-              CallGraph.callGraphAddMethod(method, parent);
-            }
-          }
-          else if (typestr.equals("RETURN")) {
-            CallGraph.callGraphReturn(content);
-          }
-          
-          // now send to the debug message display
-          DebugMessage.print(count, tstamp, message.trim());
-          
-          ++pktsRead;
-        }
+        return bufferedReader.readLine();
       } catch (IOException ex) {
         System.out.println(ex.getMessage());
       }
     }
+
+    return null;
   }
 
+  public void setInputFile(String fname) {
+    // make sure file exists
+    File file = new File(fname);
+    if (!file.isFile()) {
+      System.out.println("Input file not found: " + file.getAbsolutePath());
+      return;
+    }
+
+    // attach a file reader to it
+    try {
+      bufferedReader = new BufferedReader(new FileReader(file));
+    } catch (FileNotFoundException ex) {
+      System.out.println(ex.getMessage());
+    }
+  }
+
+  private void setOutputFile(String fname) {
+    // remove any existing file
+    File file = new File(fname);
+    file.delete();
+
+    try {
+      bufferedWriter = new BufferedWriter(new FileWriter(fname, true));
+    } catch (IOException ex) {  // includes FileNotFoundException
+      System.out.println(ex.getMessage());
+    }
+  }  
+  
+  private static String formatCounter(int count) {
+    if (count < 0) {
+      return "--------";
+    }
+    String countstr = "00000000" + ((Integer) count).toString();
+    countstr = countstr.substring(countstr.length() - 8);
+    return countstr;
+  }
+  
+  private static String formatTimestamp(long elapsedTime) {
+    // split value into hours, min and secs
+    Long msecs = elapsedTime % 1000;
+    Long secs = (elapsedTime / 1000) % 3600;
+    Long mins = secs / 60;
+    secs %= 60;
+
+    // now stringify it
+    String elapsed = "";
+    elapsed += (mins < 10) ? "0" + mins.toString() : mins.toString();
+    elapsed += ":";
+    elapsed += (secs < 10) ? "0" + secs.toString() : secs.toString();
+    String msecstr = "00" + msecs.toString();
+    msecstr = msecstr.substring(msecstr.length() - 3);
+    elapsed += "." + msecstr;
+    return elapsed;
+  }
+
+  private static String extractMessageFromPacket(DatagramPacket packet) {
+    int count = 0;
+    long tstamp = 0;
+    String message = "";
+    try {
+      // read packet
+      byte[] bytes = packet.getData();
+      ByteArrayInputStream byteIn = new ByteArrayInputStream(bytes);
+      DataInputStream dataIn = new DataInputStream(byteIn);
+
+      // extract the data from the packet
+      count = dataIn.readInt();
+      tstamp = dataIn.readLong();
+      message = dataIn.readUTF();
+    } catch (IOException ex) {
+      System.out.println(ex.getMessage());
+    }
+        
+    // keep track of lost packets (we'll skip searching for out-of-order packets for now)
+    if (lastPktCount >= 0 && count > lastPktCount + 1) {
+      pktsLost += count - lastPktCount - 1;
+      message = "ERROR : Lost packets: " + (count - lastPktCount - 1);
+      lastPktCount = count;
+      return formatCounter(-1) + " [" + formatTimestamp(tstamp) + "] " + message;
+    }
+    
+    lastPktCount = count;
+    ++pktsRead;
+
+    return formatCounter(count) + " [" + formatTimestamp(tstamp) + "] " + message;
+  }
+  
   /**
    * this is the callback to run when exiting
    */
   @Override
   public void exit() {
     running = false;
+    try {
+//      bufferedWriter.flush();
+      bufferedWriter.close();
+    } catch (IOException ex) {
+      System.out.println(ex.getMessage());
+    }
   }
 
   @Override
@@ -140,6 +243,8 @@ public class ServerThread extends Thread implements MyListener {
         // receive message to display
         DatagramPacket packet = new DatagramPacket(buf, buf.length);
         socket.receive(packet);
+        
+        // add packet to buffer
         recvBuffer.add(packet);
         
         // send the response to the client at "address" and "port"

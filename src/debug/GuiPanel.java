@@ -5,7 +5,6 @@
  */
 package debug;
 
-import com.mxgraph.swing.mxGraphComponent;
 import static debug.UDPComm.SERVER_PORT;
 import java.awt.Container;
 import java.awt.Dimension;
@@ -16,8 +15,6 @@ import java.awt.Insets;
 import java.awt.Toolkit;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
 import java.io.File;
 import java.io.IOException;
 import javax.swing.BorderFactory;
@@ -29,7 +26,6 @@ import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JList;
-import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JRadioButton;
 import javax.swing.JScrollPane;
@@ -67,11 +63,12 @@ public class GuiPanel {
   private static MyListener     listener;
   private static PacketListener pktListener;
   private static Timer          pktTimer;
+  private static Timer          graphTimer;
   
   private static final Dimension SCREEN_DIM = Toolkit.getDefaultToolkit().getScreenSize();
     
 /**
- * creates a debug panel to display the DebugMessage messages in.
+ * creates a debug panel to display the Logger messages in.
  */  
   public void createDebugPanel() {
     if (GuiPanel.mainFrame != null) {
@@ -103,10 +100,10 @@ public class GuiPanel {
         "Clear");
     JButton pauseButton = makeButton(GuiPanel.mainFrame, gbag, GuiPanel.Orient.LEFT, false,
         "Pause");
-    JButton saveTextButton = makeButton(GuiPanel.mainFrame, gbag, GuiPanel.Orient.LEFT, false,
-        "Save Text");
-    JButton saveGrphButton = makeButton(GuiPanel.mainFrame, gbag, GuiPanel.Orient.LEFT, true,
+    JButton saveGrphButton = makeButton(GuiPanel.mainFrame, gbag, GuiPanel.Orient.LEFT, false,
         "Save Graph");
+    JButton loadFileButton = makeButton(GuiPanel.mainFrame, gbag, GuiPanel.Orient.LEFT, true,
+        "Load File");
 
     // add a tabbed panel to it
     GuiPanel.tabPanel = new JTabbedPane();
@@ -141,22 +138,22 @@ public class GuiPanel {
         }
       }
     });
-    saveTextButton.addActionListener(new ActionListener() {
-      @Override
-      public void actionPerformed(java.awt.event.ActionEvent evt) {
-        saveDebugButtonActionPerformed(evt);
-      }
-    });
     saveGrphButton.addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(java.awt.event.ActionEvent evt) {
         saveGraphButtonActionPerformed(evt);
       }
     });
+    loadFileButton.addActionListener(new ActionListener() {
+      @Override
+      public void actionPerformed(java.awt.event.ActionEvent evt) {
+        loadDebugButtonActionPerformed(evt);
+      }
+    });
     clearButton.addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(java.awt.event.ActionEvent evt) {
-        DebugMessage.clear();
+        Logger.clear();
         CallGraph.clear();
         udpThread.clear();
         GuiPanel.pktsBuffered.setText("------");
@@ -169,9 +166,11 @@ public class GuiPanel {
       public void actionPerformed(java.awt.event.ActionEvent evt) {
         if (pauseButton.getText().equals("Pause")) {
           pktTimer.stop();
+          graphTimer.stop();
           pauseButton.setText("Resume");
         } else {
           pktTimer.start();
+          graphTimer.start();
           pauseButton.setText("Pause");
         }
       }
@@ -184,7 +183,7 @@ public class GuiPanel {
     GuiPanel.mainFrame.setVisible(true);
 
     // now setup the debug message handler
-    DebugMessage debug = new DebugMessage(GuiPanel.debugTextPane);
+    Logger debug = new Logger(GuiPanel.debugTextPane);
 
     // pass the graph panel to CallGraph for it to use
     CallGraph.initCallGraph(GuiPanel.graphPanel);
@@ -205,8 +204,12 @@ public class GuiPanel {
     pktTimer.start();
 
     // create a slow timer for updating the call graph
-    Timer graphTimer = new Timer(1000, new GraphUpdateListener());
+    graphTimer = new Timer(1000, new GraphUpdateListener());
     graphTimer.start();
+
+    // create a timer for updating the statistics
+    Timer statsTimer = new Timer(100, new StatsUpdateListener());
+    statsTimer.start();
   }
   
   public static boolean isDebugMsgTabSelected() {
@@ -221,8 +224,35 @@ public class GuiPanel {
     @Override
     public void actionPerformed(ActionEvent e) {
       // read & process next packet
-      GuiPanel.udpThread.getNextPacket();
+      String message = GuiPanel.udpThread.getNextMessage();
 
+      // seperate message into the message type and the message content
+      if (message != null && message.length() > 7) {
+        String typestr  = message.substring(21, 27).toUpperCase().trim();
+        String content  = message.substring(29);
+        // send CALL & RETURN info to CallGraph
+        if (typestr.equals("CALL")) {
+          int offset = content.indexOf('|');
+          if (offset > 0) {
+            String method = content.substring(0, offset).trim();
+            String parent = content.substring(offset + 1).trim();
+            CallGraph.callGraphAddMethod(method, parent);
+          }
+        }
+        else if (typestr.equals("RETURN")) {
+          CallGraph.callGraphReturn(content);
+        }
+          
+        // now send to the debug message display
+        // TODO: extract count and tstamp from message
+        Logger.print(message.trim());
+      }
+    }
+  }
+
+  private class StatsUpdateListener implements ActionListener {
+    @Override
+    public void actionPerformed(ActionEvent e) {
       // update statistics
       GuiPanel.pktsBuffered.setText("" + GuiPanel.udpThread.getBufferSize());
       GuiPanel.pktsRead.setText("" + GuiPanel.udpThread.getPktsRead());
@@ -265,6 +295,30 @@ public class GuiPanel {
       } catch (IOException ex) {
         System.err.println(ex.getMessage());
       }
+    }
+  }
+  
+  private static void loadDebugButtonActionPerformed(java.awt.event.ActionEvent evt) {
+    GuiPanel.fileSelector.setApproveButtonText("Load");
+    GuiPanel.fileSelector.setMultiSelectionEnabled(false);
+    String defaultFile = "debug.log";
+    GuiPanel.fileSelector.setSelectedFile(new File(defaultFile));
+    int retVal = GuiPanel.fileSelector.showOpenDialog(GuiPanel.mainFrame);
+    if (retVal == JFileChooser.APPROVE_OPTION) {
+      // stop the timers from updating the display
+      pktTimer.stop();
+      graphTimer.stop();
+
+      // clear the current display
+      GuiPanel.debugTextPane.setText("");
+      
+      // set the file to read from
+      File file = GuiPanel.fileSelector.getSelectedFile();
+      udpThread.setInputFile(file.getAbsolutePath());
+
+      // now restart the update timers
+      pktTimer.start();
+      graphTimer.start();
     }
   }
   

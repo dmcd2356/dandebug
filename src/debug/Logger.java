@@ -18,41 +18,27 @@ import javax.swing.text.StyleContext;
  *
  * @author dan
  */
-public class DebugMessage {
+public class Logger {
     
-  public enum FontType {
+  private enum FontType {
     Normal, Bold, Italic, BoldItalic;
   }
     
-  public enum TextColor {
+  private enum TextColor {
     Black, DkGrey, DkRed, Red, LtRed, Orange, Brown, Gold, Green, Cyan,
     LtBlue, Blue, Violet, DkVio;
   }
     
-  public static final String NEWLINE = System.getProperty("line.separator");
+  private static final String NEWLINE = System.getProperty("line.separator");
 
-  private static JTextPane debugTextPane;
-  private static long      startTime = System.currentTimeMillis(); // get the start time
-  private static boolean   showHours = false;
-  private static boolean   showMsecs = false;
-  private static boolean   timeSet = false;
-  private static int       lastcount = 0;
+  private static JTextPane       debugTextPane;
   private static HashMap<String, FontInfo> messageTypeTbl = new HashMap<>();
 
-  public DebugMessage (JTextPane textpane) {
+  public Logger (JTextPane textpane) {
     debugTextPane = textpane;
     setColors();
-    showMsecs = true;
-    showHours = false;
   }
 
-  /**
-   * closes the panel (if one was open)
-   */
-  public static void close () {
-    debugTextPane = null;   // make sure the panel will no longer be accessed
-  }
-  
   /**
    * clears the display.
    */
@@ -60,7 +46,6 @@ public class DebugMessage {
     if (debugTextPane != null) {
       debugTextPane.setText("");
     }
-    timeSet = false; // this will cause the start time to reset on the next msg received
   }
 
   /**
@@ -80,41 +65,25 @@ public class DebugMessage {
    * all messages will guarantee the previous line was terminated with a newline,
    * and will preceed the message with a timestamp value and terminate with a newline.
    * 
-   * @param count   - message number
-   * @param tstamp  - timestamp for message
    * @param message - the message to display
    */
-  public static final void print(int count, long tstamp, String message) {
+  public static final void print(String message) {
     if (debugTextPane == null) {
       return;
     }
 
-    if (message != null && !message.isEmpty()) {
-      boolean bNotFirst = timeSet;
-      
-      // format the elapsed time value
-      String elapsed = "[" + getElapsedTime(tstamp) + "] ";
+    if (message != null && !message.isEmpty() && message.length() >= 30) {
+      // extract the packet count, elapsed time, and message type from the string
+      String countstr = message.substring(0, 9);
+      String elapsed  = message.substring(9, 21);
+      String typestr  = message.substring(21, 27).toUpperCase();
+      message  = message.substring(29);
 
-      // format the packet counter info
-      String countstr = "00000000" + count;
-      countstr = countstr.substring(countstr.length() - 8);
-      
-      // verify packet counter is consecutive
-      if (bNotFirst && count > lastcount + 1 && count != 0) {
-        printRaw("INFO", "-------- ");
-        printRaw("TSTAMP", elapsed);
-        printRaw("ERROR", "Lost packets: " + (count - lastcount - 1) + NEWLINE);
-      }
-      lastcount = count;
-      
-      // extract type from message
-      String typestr = message.substring(0, 6).toUpperCase().trim();
-      
       // print message (seperate into multiple lines if ASCII newlines are contained in it)
       if (!message.contains(NEWLINE)) {
         printRaw("INFO", countstr + " ");
         printRaw("TSTAMP", elapsed);
-        printRaw(typestr, message + NEWLINE);
+        printRaw(typestr, typestr + ": " + message + NEWLINE);
       }
       else {
         // seperate into lines and print each independantly
@@ -122,7 +91,7 @@ public class DebugMessage {
         for (String msg : msgarray) {
           printRaw("INFO", countstr + " ");
           printRaw("TSTAMP", elapsed);
-          printRaw(typestr, msg + NEWLINE);
+          printRaw(typestr, typestr + ": " + msg + NEWLINE);
         }
       }
     }
@@ -130,7 +99,7 @@ public class DebugMessage {
 
   private void setColors () {
     // this is only used locally
-    setTypeColor ("TSTAMP",  TextColor.Brown, FontType.Normal);
+    setTypeColor ("TSTAMP",  TextColor.Black, FontType.Normal);
 
     // these are for public consumption
     setTypeColor ("ERROR",  TextColor.Red,    FontType.Bold);
@@ -147,60 +116,6 @@ public class DebugMessage {
     setTypeColor ("SOLVE",  TextColor.DkVio,  FontType.Bold);
   }
   
-  /**
-   * returns the elapsed time in seconds.
-   * The format of the String is: "HH:MM:SS"
-   * 
-   * @return a String of the formatted time
-   */
-  private static String getElapsedTime (long currentTime) {
-    // if time has not been set yet, use the current setting as the start value
-    if (!timeSet) {
-      timeSet = true;
-      startTime = currentTime;
-    }
-    
-    // calculate elapsed time
-    long elapsedTime = currentTime - startTime;
-    if (elapsedTime < 0) {
-      elapsedTime = 0;
-    }
-        
-    // split value into hours, min and secs
-    Long msecs = elapsedTime % 1000;
-    Long secs = (elapsedTime / 1000);
-    Long hours = 0L;
-    if (!showMsecs) {
-      secs += msecs >= 500 ? 1 : 0;
-    }
-    if (showHours) {
-      hours = secs / 3600;
-    }
-    secs %= 3600;
-    Long mins = secs / 60;
-    secs %= 60;
-
-    // now stringify it
-    String elapsed = "";
-    if (showHours) {
-      if (hours < 10) {
-        elapsed = "0";
-      }
-      elapsed += hours.toString();
-      elapsed += ":";
-    }
-    elapsed += (mins < 10) ? "0" + mins.toString() : mins.toString();
-    elapsed += ":";
-    elapsed += (secs < 10) ? "0" + secs.toString() : secs.toString();
-    if (showMsecs) {
-      String msecstr = "00" + msecs.toString();
-      msecstr = msecstr.substring(msecstr.length() - 3);
-      elapsed += "." + msecstr;
-    }
-    return elapsed;
-  }
-
-    
   /**
    * A generic function for appending formatted text to a JTextPane.
    * 
@@ -222,18 +137,6 @@ public class DebugMessage {
     debugTextPane.setCaretPosition(len);
     debugTextPane.setCharacterAttributes(aset, false);
     debugTextPane.replaceSelection(msg);
-  }
-
-  /**
-   * A generic function for appending formatted text to a JTextPane.
-   * 
-   * @param tp    - the TextPane to append to
-   * @param msg   - message contents to write
-   * @param color - color of text
-   * @param ftype - type of font style
-   */
-  private static void appendToPane(String msg, TextColor color, FontType ftype) {
-    appendToPane(msg, color, "Courier", 11, ftype);
   }
 
   /**
@@ -287,7 +190,7 @@ public class DebugMessage {
       int size = 11;
 
       // get the color and font for the specified type
-      FontInfo fontinfo = messageTypeTbl.get(type);
+      FontInfo fontinfo = messageTypeTbl.get(type.trim());
       if (fontinfo != null) {
         color = fontinfo.color;
         ftype = fontinfo.fonttype;
