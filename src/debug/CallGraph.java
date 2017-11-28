@@ -98,7 +98,9 @@ public class CallGraph {
               JOptionPane.showMessageDialog (null,
                   "Method:   " + selected.getFullName() + NEWLINE +
                   "Count:    " + selected.getCount() + NEWLINE +
-                  "Duration: " + selected.getDuration(),
+                  "Duration: " + selected.getDuration() + NEWLINE +
+                  "1st call: " + selected.getFirstLine() + NEWLINE +
+                  "last call:" + selected.getLastLine(),
                   "Method Info",
                   JOptionPane.INFORMATION_MESSAGE);
             }
@@ -126,8 +128,9 @@ public class CallGraph {
    * 
    * @param method - the full name of the method to add
    * @param parent - the full name of the caller
+   * @param line   - the line number corresponding to the call event
    */  
-  public static void callGraphAddMethod(String method, String parent) {
+  public static void callGraphAddMethod(String method, String parent, int line) {
     if (method == null || method.isEmpty() || CallGraph.graphMethList == null) {
       return;
     }
@@ -142,12 +145,12 @@ public class CallGraph {
     for (int ix = 0; ix < CallGraph.graphMethList.size(); ix++) {
       if (CallGraph.graphMethList.get(ix).getFullName().equals(method)) {
         mthNode = CallGraph.graphMethList.get(ix);
-        mthNode.incCount(); // inc # of times method called
+        mthNode.incCount(line); // inc # of times method called
       }
     }
     // if not found, create new one and add it to list
     if (mthNode == null) {
-      mthNode = new MethodInfo(method);
+      mthNode = new MethodInfo(method, line);
       CallGraph.graphMethList.add(mthNode);
       newnode = true;
     }
@@ -162,7 +165,7 @@ public class CallGraph {
         }
       }
       if (parNode == null) {
-        parNode = new MethodInfo(parent);
+        parNode = new MethodInfo(parent, -1);
         CallGraph.graphMethList.add(parNode);
         //System.out.println("AddParent: " + parNode.getClassAndMethod());
         CallGraph.callGraph.addVertex(parNode, parNode.getCGName());

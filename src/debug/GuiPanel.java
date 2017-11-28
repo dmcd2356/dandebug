@@ -227,7 +227,8 @@ public class GuiPanel {
       String message = GuiPanel.udpThread.getNextMessage();
 
       // seperate message into the message type and the message content
-      if (message != null && message.length() > 7) {
+      if (message != null && message.length() > 30) {
+        String linenum  = message.substring(0, 8);
         String typestr  = message.substring(21, 27).toUpperCase().trim();
         String content  = message.substring(29);
         // send CALL & RETURN info to CallGraph
@@ -236,7 +237,13 @@ public class GuiPanel {
           if (offset > 0) {
             String method = content.substring(0, offset).trim();
             String parent = content.substring(offset + 1).trim();
-            CallGraph.callGraphAddMethod(method, parent);
+            int count;
+            try {
+              count = Integer.parseInt(linenum);
+            } catch (Exception ex) {
+              count = -1;
+            }
+            CallGraph.callGraphAddMethod(method, parent, count);
           }
         }
         else if (typestr.equals("RETURN")) {

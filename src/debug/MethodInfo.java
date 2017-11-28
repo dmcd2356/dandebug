@@ -10,16 +10,18 @@ package debug;
  * @author dmcd2356
  */
 public class MethodInfo {
-  private String  fullName;
-  private String  className;
-  private String  methName;
-  private int     count;
-  private long    duration_ms;
-  private long    start_ref;
+  private String  fullName;       // full name of method (package, class, method + signature)
+  private String  className;      // class name (no package info or method name)
+  private String  methName;       // method name (no class info)
+  private int     count;          // number of time method called
+  private int     lineFirst;      // line number corresponding to 1st call to method
+  private int     lineLast;       // line number corresponding to last call to method
+  private long    duration_ms;    // total duration in method
+  private long    start_ref;      // timestamp when method last called
   
   private static final String NEWLINE = System.getProperty("line.separator");
 
-  public MethodInfo(String method) {
+  public MethodInfo(String method, int line) {
     fullName = className = methName = "";
     if (method != null && !method.isEmpty()) {
       // fullName should be untouched - it is used for comparisons
@@ -40,13 +42,16 @@ public class MethodInfo {
     }
 
     count = 1;
+    lineFirst = line;
+    lineLast = line;
     duration_ms = 0;
     start_ref = System.currentTimeMillis();
     //System.out.println("start time: " + start_ref + " (init) - " + fullName);
   }
   
-  public void incCount() {
+  public void incCount(int line) {
     ++count;
+    lineLast = line;
     start_ref = System.currentTimeMillis();
     //System.out.println("start time: " + start_ref + ", count " + count + " - " +  fullName);
   }
@@ -78,6 +83,14 @@ public class MethodInfo {
   
   public int getCount() {
     return count;
+  }
+  
+  public int getFirstLine() {
+    return lineFirst;
+  }
+  
+  public int getLastLine() {
+    return lineLast;
   }
   
   public long getDuration() {
