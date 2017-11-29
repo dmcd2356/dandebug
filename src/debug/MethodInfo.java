@@ -13,7 +13,7 @@ public class MethodInfo {
   private String  fullName;       // full name of method (package, class, method + signature)
   private String  className;      // class name (no package info or method name)
   private String  methName;       // method name (no class info)
-  private int     count;          // number of time method called
+  private int     count;          // number of times method called
   private int     lineFirst;      // line number corresponding to 1st call to method
   private int     lineLast;       // line number corresponding to last call to method
   private long    duration_ms;    // total duration in method

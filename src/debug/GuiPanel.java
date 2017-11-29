@@ -5,7 +5,6 @@
  */
 package debug;
 
-import static debug.UDPComm.SERVER_PORT;
 import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.Font;
@@ -64,17 +63,29 @@ public class GuiPanel {
   private static PacketListener pktListener;
   private static Timer          pktTimer;
   private static Timer          graphTimer;
+  private static boolean        bRunLogger;
+  private static boolean        bRunGraphics;
   
   private static final Dimension SCREEN_DIM = Toolkit.getDefaultToolkit().getScreenSize();
-    
+
 /**
  * creates a debug panel to display the Logger messages in.
+   * @param port  - the port to use for reading messages
+   * @param bLogger - true if enable the debug message display
+   * @param bGraph  - true if enable the graphics display
  */  
-  public void createDebugPanel() {
+  public void createDebugPanel(int port, boolean bLogger, boolean bGraph) {
     if (GuiPanel.mainFrame != null) {
       GuiPanel.mainFrame.dispose();
     }
 
+    GuiPanel.bRunLogger = bLogger;
+    GuiPanel.bRunGraphics = bGraph;
+    if (!bLogger && !bGraph) {
+      System.out.println("Can't disable both logger and graphics!");
+      System.exit(1);
+    }
+    
     // create the frame
     framesize = new Dimension(1200, 600);
     GuiPanel.mainFrame = new JFrame("dandebug");
@@ -111,15 +122,19 @@ public class GuiPanel {
     GuiPanel.mainFrame.add(GuiPanel.tabPanel);
     
     // add the debug message panel to the tabs
-    GuiPanel.debugTextPane = new JTextPane();
-    JScrollPane fileScrollPanel = new JScrollPane(GuiPanel.debugTextPane);
-    fileScrollPanel.setBorder(BorderFactory.createTitledBorder(""));
-    GuiPanel.tabPanel.addTab("Debug Messages", fileScrollPanel);
+    if (GuiPanel.bRunLogger) {
+      GuiPanel.debugTextPane = new JTextPane();
+      JScrollPane fileScrollPanel = new JScrollPane(GuiPanel.debugTextPane);
+      fileScrollPanel.setBorder(BorderFactory.createTitledBorder(""));
+      GuiPanel.tabPanel.addTab("Debug Messages", fileScrollPanel);
+    }
 
     // add the CallGraph panel to the tabs
-    GuiPanel.graphPanel = new JPanel();
-    JScrollPane graphScrollPanel = new JScrollPane(GuiPanel.graphPanel);
-    GuiPanel.tabPanel.addTab("Call Graph", graphScrollPanel);
+    if (GuiPanel.bRunGraphics) {
+      GuiPanel.graphPanel = new JPanel();
+      JScrollPane graphScrollPanel = new JScrollPane(GuiPanel.graphPanel);
+      GuiPanel.tabPanel.addTab("Call Graph", graphScrollPanel);
+    }
 
     // setup the control actions
     GuiPanel.mainFrame.addWindowListener(new java.awt.event.WindowAdapter() {
@@ -166,11 +181,15 @@ public class GuiPanel {
       public void actionPerformed(java.awt.event.ActionEvent evt) {
         if (pauseButton.getText().equals("Pause")) {
           pktTimer.stop();
-          graphTimer.stop();
+          if (graphTimer != null) {
+            graphTimer.stop();
+          }
           pauseButton.setText("Resume");
         } else {
           pktTimer.start();
-          graphTimer.start();
+          if (graphTimer != null) {
+            graphTimer.start();
+          }
           pauseButton.setText("Pause");
         }
       }
@@ -183,14 +202,18 @@ public class GuiPanel {
     GuiPanel.mainFrame.setVisible(true);
 
     // now setup the debug message handler
-    Logger debug = new Logger(GuiPanel.debugTextPane);
+    if (GuiPanel.bRunLogger) {
+      Logger debug = new Logger(GuiPanel.debugTextPane);
+    }
 
     // pass the graph panel to CallGraph for it to use
-    CallGraph.initCallGraph(GuiPanel.graphPanel);
+    if (GuiPanel.bRunGraphics) {
+      CallGraph.initCallGraph(GuiPanel.graphPanel);
+    }
     
     // start the UDP listener
     try {
-      GuiPanel.udpThread = new ServerThread(SERVER_PORT);
+      GuiPanel.udpThread = new ServerThread(port);
       GuiPanel.udpThread.start();
       GuiPanel.listener = GuiPanel.udpThread;
     } catch (IOException ex) {
@@ -204,8 +227,10 @@ public class GuiPanel {
     pktTimer.start();
 
     // create a slow timer for updating the call graph
-    graphTimer = new Timer(1000, new GraphUpdateListener());
-    graphTimer.start();
+    if (GuiPanel.bRunGraphics) {
+      graphTimer = new Timer(1000, new GraphUpdateListener());
+      graphTimer.start();
+    }
 
     // create a timer for updating the statistics
     Timer statsTimer = new Timer(100, new StatsUpdateListener());
@@ -213,10 +238,16 @@ public class GuiPanel {
   }
   
   public static boolean isDebugMsgTabSelected() {
+    if (!GuiPanel.bRunGraphics) {
+      return true;
+    }
     return GuiPanel.tabPanel.getSelectedIndex() == 0;
   }
   
   public static boolean isCallGraphTabSelected() {
+    if (!GuiPanel.bRunLogger) {
+      return true;
+    }
     return GuiPanel.tabPanel.getSelectedIndex() == 1;
   }
   
@@ -228,31 +259,35 @@ public class GuiPanel {
 
       // seperate message into the message type and the message content
       if (message != null && message.length() > 30) {
-        String linenum  = message.substring(0, 8);
-        String typestr  = message.substring(21, 27).toUpperCase().trim();
-        String content  = message.substring(29);
-        // send CALL & RETURN info to CallGraph
-        if (typestr.equals("CALL")) {
-          int offset = content.indexOf('|');
-          if (offset > 0) {
-            String method = content.substring(0, offset).trim();
-            String parent = content.substring(offset + 1).trim();
-            int count;
-            try {
-              count = Integer.parseInt(linenum);
-            } catch (Exception ex) {
-              count = -1;
+        if (GuiPanel.bRunGraphics) {
+          String linenum  = message.substring(0, 8);
+          String typestr  = message.substring(21, 27).toUpperCase().trim();
+          String content  = message.substring(29);
+          // send CALL & RETURN info to CallGraph
+          if (typestr.equals("CALL")) {
+            int offset = content.indexOf('|');
+            if (offset > 0) {
+              String method = content.substring(0, offset).trim();
+              String parent = content.substring(offset + 1).trim();
+              int count;
+              try {
+                count = Integer.parseInt(linenum);
+              } catch (Exception ex) {
+                count = -1;
+              }
+              CallGraph.callGraphAddMethod(method, parent, count);
             }
-            CallGraph.callGraphAddMethod(method, parent, count);
           }
-        }
-        else if (typestr.equals("RETURN")) {
-          CallGraph.callGraphReturn(content);
+          else if (typestr.equals("RETURN")) {
+            CallGraph.callGraphReturn(content);
+          }
         }
           
         // now send to the debug message display
         // TODO: extract count and tstamp from message
-        Logger.print(message.trim());
+        if (GuiPanel.bRunLogger) {
+          Logger.print(message.trim());
+        }
       }
     }
   }
@@ -284,27 +319,6 @@ public class GuiPanel {
     GuiPanel.mainFrame.setSize(framesize);
   }
 
-  private static void saveDebugButtonActionPerformed(java.awt.event.ActionEvent evt) {
-    GuiPanel.fileSelector.setApproveButtonText("Save");
-    GuiPanel.fileSelector.setMultiSelectionEnabled(false);
-    String defaultFile = "debug.log";
-    GuiPanel.fileSelector.setSelectedFile(new File(defaultFile));
-    int retVal = GuiPanel.fileSelector.showOpenDialog(GuiPanel.mainFrame);
-    if (retVal == JFileChooser.APPROVE_OPTION) {
-      // copy debug text to specified file
-      String content = GuiPanel.debugTextPane.getText();
-
-      // output to the file
-      File file = GuiPanel.fileSelector.getSelectedFile();
-      file.delete();
-      try {
-        FileUtils.writeStringToFile(file, content, "UTF-8");
-      } catch (IOException ex) {
-        System.err.println(ex.getMessage());
-      }
-    }
-  }
-  
   private static void loadDebugButtonActionPerformed(java.awt.event.ActionEvent evt) {
     GuiPanel.fileSelector.setApproveButtonText("Load");
     GuiPanel.fileSelector.setMultiSelectionEnabled(false);
@@ -314,10 +328,14 @@ public class GuiPanel {
     if (retVal == JFileChooser.APPROVE_OPTION) {
       // stop the timers from updating the display
       pktTimer.stop();
-      graphTimer.stop();
+      if (graphTimer != null) {
+        graphTimer.stop();
+      }
 
       // clear the current display
-      GuiPanel.debugTextPane.setText("");
+      if (GuiPanel.debugTextPane != null) {
+        GuiPanel.debugTextPane.setText("");
+      }
       
       // set the file to read from
       File file = GuiPanel.fileSelector.getSelectedFile();
@@ -325,7 +343,9 @@ public class GuiPanel {
 
       // now restart the update timers
       pktTimer.start();
-      graphTimer.start();
+      if (graphTimer != null) {
+        graphTimer.start();
+      }
     }
   }
   
@@ -336,9 +356,6 @@ public class GuiPanel {
     GuiPanel.fileSelector.setSelectedFile(new File(defaultFile));
     int retVal = GuiPanel.fileSelector.showOpenDialog(GuiPanel.mainFrame);
     if (retVal == JFileChooser.APPROVE_OPTION) {
-      // copy debug text to specified file
-      String content = GuiPanel.debugTextPane.getText();
-
       // output to the file
       File file = GuiPanel.fileSelector.getSelectedFile();
       file.delete();

@@ -31,7 +31,7 @@ public class Logger {
     
   private static final String NEWLINE = System.getProperty("line.separator");
 
-  private static JTextPane       debugTextPane;
+  private static JTextPane       debugTextPane = null;
   private static HashMap<String, FontInfo> messageTypeTbl = new HashMap<>();
 
   public Logger (JTextPane textpane) {
@@ -82,7 +82,7 @@ public class Logger {
       // print message (seperate into multiple lines if ASCII newlines are contained in it)
       if (!message.contains(NEWLINE)) {
         printRaw("INFO", countstr + " ");
-        printRaw("TSTAMP", elapsed);
+        printRaw("INFO", elapsed);
         printRaw(typestr, typestr + ": " + message + NEWLINE);
       }
       else {
@@ -90,7 +90,7 @@ public class Logger {
         String[] msgarray = message.split(NEWLINE);
         for (String msg : msgarray) {
           printRaw("INFO", countstr + " ");
-          printRaw("TSTAMP", elapsed);
+          printRaw("INFO", elapsed);
           printRaw(typestr, typestr + ": " + msg + NEWLINE);
         }
       }
@@ -98,8 +98,9 @@ public class Logger {
   }
 
   private void setColors () {
-    // this is only used locally
-    setTypeColor ("TSTAMP",  TextColor.Black, FontType.Normal);
+    if (debugTextPane == null) {
+      return;
+    }
 
     // these are for public consumption
     setTypeColor ("ERROR",  TextColor.Red,    FontType.Bold);

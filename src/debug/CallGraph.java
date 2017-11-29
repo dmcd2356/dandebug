@@ -54,6 +54,13 @@ public class CallGraph {
 
     updateCallGraph();
   }
+
+  public static int getMethodCount() {
+    if (graphMethList != null) {
+      return graphMethList.size();
+    }
+    return 0;
+  }
   
   public static void saveImageAsFile(String name) {
     BufferedImage bi = new BufferedImage(CallGraph.graphPanel.getSize().width,

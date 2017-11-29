@@ -91,6 +91,7 @@ public final class ServerThread extends Thread implements MyListener {
           DatagramPacket packet = recvBuffer.remove();
           String message = extractMessageFromPacket(packet);
 
+          // append message to file
           bufferedWriter.write(message + System.getProperty("line.separator"));
           bufferedWriter.flush();
         } catch (IOException ex) {
@@ -133,20 +134,23 @@ public final class ServerThread extends Thread implements MyListener {
     return null;
   }
 
-  public void setInputFile(String fname) {
+  public int setInputFile(String fname) {
     // make sure file exists
     File file = new File(fname);
     if (!file.isFile()) {
       System.out.println("Input file not found: " + file.getAbsolutePath());
-      return;
+      return 0;
     }
 
     // attach a file reader to it
+    int lines = 0;
     try {
       bufferedReader = new BufferedReader(new FileReader(file));
     } catch (FileNotFoundException ex) {
       System.out.println(ex.getMessage());
     }
+
+    return lines;
   }
 
   private void setOutputFile(String fname) {
