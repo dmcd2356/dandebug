@@ -248,8 +248,10 @@ public final class ServerThread extends Thread implements MyListener {
         DatagramPacket packet = new DatagramPacket(buf, buf.length);
         socket.receive(packet);
         
-        // add packet to buffer
-        recvBuffer.add(packet);
+        // add packet to buffer (leak packets if we are straining the buffer)
+        if (recvBuffer.size() < 100000) {
+          recvBuffer.add(packet);
+        }
         
         // send the response to the client at "address" and "port"
 //        InetAddress address = packet.getAddress();

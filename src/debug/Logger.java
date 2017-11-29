@@ -8,8 +8,10 @@ package debug;
 import java.awt.Color;
 import java.awt.Graphics;
 import java.util.HashMap;
+import java.util.logging.Level;
 import javax.swing.JTextPane;
 import javax.swing.text.AttributeSet;
+import javax.swing.text.BadLocationException;
 import javax.swing.text.SimpleAttributeSet;
 import javax.swing.text.StyleConstants;
 import javax.swing.text.StyleContext;
@@ -20,6 +22,13 @@ import javax.swing.text.StyleContext;
  */
 public class Logger {
     
+  // these are used for limiting the amount of text displayed in the logger display to limit
+  // memory use. MAX_TEXT_BUFFER_SIZE defines the upper memory usage when the reduction takes
+  // place and REDUCE_BUFFER_SIZE is the minimum number of bytes to reduce it by (it will look
+  // for the next NEWLINE char).
+  private final static int MAX_TEXT_BUFFER_SIZE = 1500000;
+  private final static int REDUCE_BUFFER_SIZE   = 200000;
+  
   private enum FontType {
     Normal, Bold, Italic, BoldItalic;
   }
@@ -132,9 +141,28 @@ public class Logger {
     if (debugTextPane == null) {
       return;
     }
-        
+    
     AttributeSet aset = setTextAttr(color, font, size, ftype);
     int len = debugTextPane.getDocument().getLength();
+
+    // trim off earlier data to reduce memory usage if we exceed our bounds
+    if (len > MAX_TEXT_BUFFER_SIZE) {
+      try {
+        int oldlen = len;
+        int start = REDUCE_BUFFER_SIZE;
+        String text = debugTextPane.getDocument().getText(start, 500);
+        int offset = text.indexOf(NEWLINE);
+        if (offset >= 0) {
+          start += offset + 1;
+        }
+        debugTextPane.getDocument().remove(0, start);
+        len = debugTextPane.getDocument().getLength();
+        System.out.println("Reduced text from " + oldlen + " to " + len);
+      } catch (BadLocationException ex) {
+        System.out.println(ex.getMessage());
+      }
+    }
+
     debugTextPane.setCaretPosition(len);
     debugTextPane.setCharacterAttributes(aset, false);
     debugTextPane.replaceSelection(msg);
