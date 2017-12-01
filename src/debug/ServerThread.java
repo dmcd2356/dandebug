@@ -134,23 +134,26 @@ public final class ServerThread extends Thread implements MyListener {
     return null;
   }
 
-  public int setInputFile(String fname) {
+  public void setInputFile(String fname) {
+    if (fname == null) {
+      System.out.println("bufferedReader: disabling input");
+      bufferedReader = null;
+      return;
+    }
     // make sure file exists
     File file = new File(fname);
     if (!file.isFile()) {
       System.out.println("Input file not found: " + file.getAbsolutePath());
-      return 0;
+      return;
     }
 
     // attach a file reader to it
-    int lines = 0;
     try {
+      System.out.println("bufferedReader: read from file: " + fname);
       bufferedReader = new BufferedReader(new FileReader(file));
     } catch (FileNotFoundException ex) {
       System.out.println(ex.getMessage());
     }
-
-    return lines;
   }
 
   private void setOutputFile(String fname) {
@@ -159,6 +162,7 @@ public final class ServerThread extends Thread implements MyListener {
     file.delete();
 
     try {
+      System.out.println("bufferedWriter: (port capture) started: " + fname);
       bufferedWriter = new BufferedWriter(new FileWriter(fname, true));
     } catch (IOException ex) {  // includes FileNotFoundException
       System.out.println(ex.getMessage());
@@ -231,6 +235,7 @@ public final class ServerThread extends Thread implements MyListener {
   public void exit() {
     running = false;
     try {
+      System.out.println("bufferedWriter: closing");
 //      bufferedWriter.flush();
       bufferedWriter.close();
     } catch (IOException ex) {

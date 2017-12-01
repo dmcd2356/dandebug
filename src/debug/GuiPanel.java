@@ -37,7 +37,6 @@ import javax.swing.Timer;
 import javax.swing.WindowConstants;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
-import org.apache.commons.io.FileUtils;
 
 /**
  *
@@ -56,6 +55,8 @@ public class GuiPanel {
   private static JTextField     pktsBuffered;
   private static JTextField     pktsRead;
   private static JTextField     pktsLost;
+  private static JTextField     linesProcessed;
+  private static JTextField     methodsFound;
   private static JFileChooser   fileSelector;
   private static Dimension      framesize;
   private static ServerThread   udpThread;
@@ -63,6 +64,7 @@ public class GuiPanel {
   private static PacketListener pktListener;
   private static Timer          pktTimer;
   private static Timer          graphTimer;
+  private static int            linesRead;
   private static boolean        bRunLogger;
   private static boolean        bRunGraphics;
   
@@ -103,10 +105,14 @@ public class GuiPanel {
     // add the components
     GuiPanel.pktsBuffered = makeTextField(GuiPanel.mainFrame, gbag, GuiPanel.Orient.LEFT, false,
         "Buffer", "------", false);
+    GuiPanel.pktsLost = makeTextField(GuiPanel.mainFrame, gbag, GuiPanel.Orient.LEFT, false,
+        "Pkts Lost", "------", false);
     GuiPanel.pktsRead = makeTextField(GuiPanel.mainFrame, gbag, GuiPanel.Orient.LEFT, false,
         "Pkts Read", "------", false);
-    GuiPanel.pktsLost = makeTextField(GuiPanel.mainFrame, gbag, GuiPanel.Orient.LEFT, true,
-        "Pkts Lost", "------", false);
+    GuiPanel.linesProcessed = makeTextField(GuiPanel.mainFrame, gbag, GuiPanel.Orient.LEFT, false,
+        "Processed", "------", false);
+    GuiPanel.methodsFound = makeTextField(GuiPanel.mainFrame, gbag, GuiPanel.Orient.LEFT, true,
+        "Methods", "------", false);
     JButton clearButton = makeButton(GuiPanel.mainFrame, gbag, GuiPanel.Orient.LEFT, false,
         "Clear");
     JButton pauseButton = makeButton(GuiPanel.mainFrame, gbag, GuiPanel.Orient.LEFT, false,
@@ -168,12 +174,7 @@ public class GuiPanel {
     clearButton.addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(java.awt.event.ActionEvent evt) {
-        Logger.clear();
-        CallGraph.clear();
-        udpThread.clear();
-        GuiPanel.pktsBuffered.setText("------");
-        GuiPanel.pktsRead.setText("------");
-        GuiPanel.pktsLost.setText("------");
+        resetCapturedInput();
       }
     });
     pauseButton.addActionListener(new ActionListener() {
@@ -288,6 +289,8 @@ public class GuiPanel {
         if (GuiPanel.bRunLogger) {
           Logger.print(message.trim());
         }
+
+        GuiPanel.linesRead++;
       }
     }
   }
@@ -299,6 +302,8 @@ public class GuiPanel {
       GuiPanel.pktsBuffered.setText("" + GuiPanel.udpThread.getBufferSize());
       GuiPanel.pktsRead.setText("" + GuiPanel.udpThread.getPktsRead());
       GuiPanel.pktsLost.setText("" + GuiPanel.udpThread.getPktsLost());
+      GuiPanel.linesProcessed.setText("" + GuiPanel.linesRead);
+      GuiPanel.methodsFound.setText("" + CallGraph.getMethodCount());
     }
   }
 
@@ -332,10 +337,11 @@ public class GuiPanel {
         graphTimer.stop();
       }
 
+      // shut down the port input
+      udpThread.exit();
+
       // clear the current display
-      if (GuiPanel.debugTextPane != null) {
-        GuiPanel.debugTextPane.setText("");
-      }
+      resetCapturedInput();
       
       // set the file to read from
       File file = GuiPanel.fileSelector.getSelectedFile();
@@ -365,6 +371,26 @@ public class GuiPanel {
   
   private static void formWindowClosing(java.awt.event.WindowEvent evt) {
     listener.exit();
+    udpThread.exit();
+  }
+
+  private static void resetCapturedInput() {
+    // clear the packet buffer and statistics
+    udpThread.clear();
+
+    // clear the text panel
+    Logger.clear();
+    
+    // clear the graphics panel
+    CallGraph.clear();
+    
+    // clear the stats
+    GuiPanel.linesRead = 0;
+    GuiPanel.pktsBuffered.setText("------");
+    GuiPanel.pktsRead.setText("------");
+    GuiPanel.pktsLost.setText("------");
+    GuiPanel.linesProcessed.setText("------");
+    GuiPanel.methodsFound.setText("------");
   }
   
   /**

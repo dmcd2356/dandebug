@@ -8,7 +8,6 @@ package debug;
 import java.awt.Color;
 import java.awt.Graphics;
 import java.util.HashMap;
-import java.util.logging.Level;
 import javax.swing.JTextPane;
 import javax.swing.text.AttributeSet;
 import javax.swing.text.BadLocationException;
