@@ -16,6 +16,7 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Stack;
 import javax.imageio.ImageIO;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
@@ -32,19 +33,29 @@ public class CallGraph {
   private static mxGraphComponent graphComponent = null;
   private static BaseGraph<MethodInfo> callGraph = null;
   private static List<MethodInfo> graphMethList = null;
+  private static Stack<Integer>   callStack = null;
   private static boolean bUpdateNeeded = false;
+  private static long maxDuration = 0;
+  private static int maxCount = 0;
   
   public static void initCallGraph(JPanel panel) {
     CallGraph.graphMethList = new ArrayList<>();
+    CallGraph.callStack = new Stack<>();
     CallGraph.callGraph = new BaseGraph<>();
     CallGraph.graphComponent = null;
+    CallGraph.maxDuration = 0;
+    CallGraph.maxCount = 1;
+
     CallGraph.graphPanel = panel;
   }
 
   public static void clear() {
     CallGraph.graphMethList = new ArrayList<>();
+    CallGraph.callStack = new Stack<>();
     CallGraph.callGraph = new BaseGraph<>();
     CallGraph.graphComponent = null;
+    CallGraph.maxDuration = 0;
+    CallGraph.maxCount = 1;
 
     CallGraph.graphPanel.removeAll();
     Graphics graphics = graphPanel.getGraphics();
@@ -133,11 +144,12 @@ public class CallGraph {
   /**
    * adds a method to the call graph if it is not already there
    * 
+   * @param tstamp - timestamp in msec from msg
    * @param method - the full name of the method to add
    * @param parent - the full name of the caller
    * @param line   - the line number corresponding to the call event
    */  
-  public static void callGraphAddMethod(String method, String parent, int line) {
+  public static void callGraphAddMethod(long tstamp, String method, String parent, int line) {
     if (method == null || method.isEmpty() || CallGraph.graphMethList == null) {
       return;
     }
@@ -149,15 +161,22 @@ public class CallGraph {
     boolean bUpdate = false;
     MethodInfo mthNode = null;
     boolean newnode = false;
-    for (int ix = 0; ix < CallGraph.graphMethList.size(); ix++) {
+    int count = CallGraph.graphMethList.size();
+    for (int ix = 0; ix < count; ix++) {
       if (CallGraph.graphMethList.get(ix).getFullName().equals(method)) {
+        CallGraph.callStack.push(ix); // save entry as last method called
         mthNode = CallGraph.graphMethList.get(ix);
         mthNode.incCount(line); // inc # of times method called
+        int newCount = mthNode.getCount();
+        if (CallGraph.maxCount < newCount) {
+          CallGraph.maxCount = newCount;
+        }
       }
     }
     // if not found, create new one and add it to list
     if (mthNode == null) {
-      mthNode = new MethodInfo(method, line);
+      CallGraph.callStack.push(count); // save entry as last method called
+      mthNode = new MethodInfo(method, tstamp, line);
       CallGraph.graphMethList.add(mthNode);
       newnode = true;
     }
@@ -172,7 +191,7 @@ public class CallGraph {
         }
       }
       if (parNode == null) {
-        parNode = new MethodInfo(parent, -1);
+        parNode = new MethodInfo(parent, 0, -1);
         CallGraph.graphMethList.add(parNode);
         //System.out.println("AddParent: " + parNode.getClassAndMethod());
         CallGraph.callGraph.addVertex(parNode, parNode.getCGName());
@@ -205,22 +224,26 @@ public class CallGraph {
   /**
    * adds exit condition info to a method in the call graph
    * 
+   * @param tstamp - timestamp in msec from msg
    * @param method - the full name of the method that is exiting
    */  
-  public static void callGraphReturn(String method) {
+  public static void callGraphReturn(long tstamp, String method) {
     if (CallGraph.graphMethList == null || method == null) {
       //System.out.println("Return: " + method + " - NOT FOUND!");
       return;
     }
     
-    // find method entry in list
-    method = method.trim();
-    for (int ix = 0; ix < CallGraph.graphMethList.size(); ix++) {
-      if (CallGraph.graphMethList.get(ix).getFullName().equals(method)) {
+    // get method we are returning from (last entry in stack)
+    if (!CallGraph.callStack.isEmpty()) {
+      int ix = CallGraph.callStack.pop();
+      if (ix >= 0 && ix < CallGraph.graphMethList.size()) {
         MethodInfo mthNode = CallGraph.graphMethList.get(ix);
-        mthNode.exit();
-        //System.out.println("Return: " + mthNode.getClassAndMethod() + " time = " + mthNode.getDuration());
-        return;
+        mthNode.exit(tstamp);
+        long newDuration = mthNode.getDuration();
+        if (CallGraph.maxDuration < newDuration) {
+          CallGraph.maxDuration = newDuration;
+        }
+        //System.out.println("Return: (" + mthNode.getDuration() + ") " + mthNode.getClassAndMethod());
       }
     }
   }

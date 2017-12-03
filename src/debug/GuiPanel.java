@@ -261,26 +261,33 @@ public class GuiPanel {
       // seperate message into the message type and the message content
       if (message != null && message.length() > 30) {
         if (GuiPanel.bRunGraphics) {
-          String linenum  = message.substring(0, 8);
-          String typestr  = message.substring(21, 27).toUpperCase().trim();
-          String content  = message.substring(29);
+          String linenum = message.substring(0, 8);
+          String timeMin = message.substring(10, 12);
+          String timeSec = message.substring(13, 15);
+          String timeMs  = message.substring(16, 19);
+          String typestr = message.substring(21, 27).toUpperCase().trim();
+          String content = message.substring(29);
+          int  count = 0;
+          long tstamp = 0;
+          try {
+            count = Integer.parseInt(linenum);
+            tstamp = ((Integer.parseInt(timeMin) * 60) + Integer.parseInt(timeSec)) * 1000;
+            tstamp += Integer.parseInt(timeMs);
+          } catch (NumberFormatException ex) {
+            // invalid line - skip
+            return;
+          }
           // send CALL & RETURN info to CallGraph
           if (typestr.equals("CALL")) {
             int offset = content.indexOf('|');
             if (offset > 0) {
               String method = content.substring(0, offset).trim();
               String parent = content.substring(offset + 1).trim();
-              int count;
-              try {
-                count = Integer.parseInt(linenum);
-              } catch (Exception ex) {
-                count = -1;
-              }
-              CallGraph.callGraphAddMethod(method, parent, count);
+              CallGraph.callGraphAddMethod(tstamp, method, parent, count);
             }
           }
           else if (typestr.equals("RETURN")) {
-            CallGraph.callGraphReturn(content);
+            CallGraph.callGraphReturn(tstamp, content);
           }
         }
           

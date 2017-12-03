@@ -21,7 +21,7 @@ public class MethodInfo {
   
   private static final String NEWLINE = System.getProperty("line.separator");
 
-  public MethodInfo(String method, int line) {
+  public MethodInfo(String method, long tstamp, int line) {
     fullName = className = methName = "";
     if (method != null && !method.isEmpty()) {
       // fullName should be untouched - it is used for comparisons
@@ -45,7 +45,7 @@ public class MethodInfo {
     lineFirst = line;
     lineLast = line;
     duration_ms = 0;
-    start_ref = System.currentTimeMillis();
+    start_ref = tstamp;
     //System.out.println("start time: " + start_ref + " (init) - " + fullName);
   }
   
@@ -56,9 +56,8 @@ public class MethodInfo {
     //System.out.println("start time: " + start_ref + ", count " + count + " - " +  fullName);
   }
   
-  public void exit() {
-    long currentTime = System.currentTimeMillis();
-    long elapsedTime = currentTime - start_ref;
+  public void exit(long tstamp) {
+    long elapsedTime = tstamp - start_ref;
     if (elapsedTime > 0) {
       duration_ms += elapsedTime;
     }
