@@ -133,6 +133,28 @@ public class CallGraph {
         }
       }
 
+      // update colors based on time usage or number of calls
+      for (int ix = 0; ix < CallGraph.graphMethList.size(); ix++) {
+        MethodInfo mthNode = CallGraph.graphMethList.get(ix);
+        long duration = CallGraph.graphMethList.get(ix).getDuration();
+        // colors used in janalyzer: "#FFA07A", "#FA8072", "#FF0000", "#8B0000", "pink", "green"
+        String color = "D2E9FF";
+        if (duration >= (maxDuration * 8) / 10) {
+          color = "FF6666";
+        }
+        else if (duration >= (maxDuration * 6) / 10) {
+          color = "FF8888";
+        }
+        else if (duration >= (maxDuration * 4) / 10) {
+          color = "FFAAAA";
+        }
+        else if (duration >= (maxDuration * 2) / 10) {
+          color = "FFCCCC";
+        }
+        CallGraph.callGraph.colorVertex(mthNode, color);
+        //System.out.println(color + " for: " + mthNode.getFullName());
+      }
+
       // update the graph layout
       CallGraph.callGraph.layoutGraph();
       updated = true;
