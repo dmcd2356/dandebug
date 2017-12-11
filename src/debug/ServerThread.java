@@ -20,6 +20,8 @@ import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.util.LinkedList;
 import java.util.Queue;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.swing.Timer;
 
 // provides callback interface
@@ -45,6 +47,7 @@ public final class ServerThread extends Thread implements MyListener {
   private static int        pktsLost;
   private static int        lastPktCount;
   private static Timer      fileTimer;
+  private static String     fileName;
 
   public ServerThread(int port) throws IOException {
     super("ServerThread");
@@ -55,6 +58,7 @@ public final class ServerThread extends Thread implements MyListener {
       lastPktCount = -1;
       pktsRead = 0;
       pktsLost = 0;
+      fileName = null;
 
       // open the communications socket
       socket = new DatagramSocket(serverPort);
@@ -134,12 +138,35 @@ public final class ServerThread extends Thread implements MyListener {
     return null;
   }
 
-  public void setInputFile(String fname) {
-    if (fname == null) {
-      System.out.println("bufferedReader: disabling input");
+  public void closeInputFile() {
+    if (bufferedReader != null) {
+      if (ServerThread.fileName == null) {
+        System.out.println("bufferedReader: disabling input from remote");
+      } else {
+        System.out.println("bufferedReader: disabling input from file: " + ServerThread.fileName);
+      }
+      try {
+        bufferedReader.close();
+      } catch (IOException ex) {
+        System.out.println(ex.getMessage());
+        return;
+      }
       bufferedReader = null;
+      ServerThread.fileName = null;
+    }
+  }
+  
+  public void setInputFile(String fname) {
+    // close the current file reader (if any)
+    closeInputFile();
+    if (fname == null || fname.isEmpty()) {
       return;
     }
+    
+    if (!fname.equals(BUFFER_FILE_NAME)) {
+      ServerThread.fileName = fname;
+    }
+    
     // make sure file exists
     File file = new File(fname);
     if (!file.isFile()) {

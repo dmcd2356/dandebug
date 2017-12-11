@@ -67,6 +67,7 @@ public class GuiPanel {
   private static int            linesRead;
   private static boolean        bRunLogger;
   private static boolean        bRunGraphics;
+  private static boolean        bFileLoading;
   
   private static final Dimension SCREEN_DIM = Toolkit.getDefaultToolkit().getScreenSize();
 
@@ -81,6 +82,7 @@ public class GuiPanel {
       GuiPanel.mainFrame.dispose();
     }
 
+    GuiPanel.bFileLoading = false;
     GuiPanel.bRunLogger = bLogger;
     GuiPanel.bRunGraphics = bGraph;
     if (!bLogger && !bGraph) {
@@ -257,6 +259,15 @@ public class GuiPanel {
     public void actionPerformed(ActionEvent e) {
       // read & process next packet
       String message = GuiPanel.udpThread.getNextMessage();
+      
+      // close file if we are reading from file
+      if (message == null && GuiPanel.bFileLoading == true) {
+        GuiPanel.udpThread.closeInputFile();
+        
+        // also, stop the packet listener
+        pktTimer.stop();
+        GuiPanel.bFileLoading = false;
+      }
 
       // seperate message into the message type and the message content
       if (message != null && message.length() > 30) {
@@ -353,6 +364,7 @@ public class GuiPanel {
       // set the file to read from
       File file = GuiPanel.fileSelector.getSelectedFile();
       udpThread.setInputFile(file.getAbsolutePath());
+      GuiPanel.bFileLoading = true;
 
       // now restart the update timers
       pktTimer.start();
