@@ -34,17 +34,24 @@ public class CallGraph {
   private static BaseGraph<MethodInfo> callGraph = null;
   private static List<MethodInfo> graphMethList = null;
   private static Stack<Integer>   callStack = null;
-  private static boolean bUpdateNeeded = false;
-  private static long maxDuration = 0;
-  private static int maxCount = 0;
+  private static int numNodes;
+  private static int numEdges;
+  private static long maxDuration;
+  private static int maxCount;
+  private static int maxInstrCount;
+  private static GuiPanel.GraphHighlight curGraphMode;
   
   public static void initCallGraph(JPanel panel) {
     CallGraph.graphMethList = new ArrayList<>();
     CallGraph.callStack = new Stack<>();
     CallGraph.callGraph = new BaseGraph<>();
     CallGraph.graphComponent = null;
+    CallGraph.numNodes = 0;
+    CallGraph.numEdges = 0;
     CallGraph.maxDuration = 0;
     CallGraph.maxCount = 1;
+    CallGraph.maxInstrCount = 0;
+    CallGraph.curGraphMode = GuiPanel.GraphHighlight.NONE;
 
     CallGraph.graphPanel = panel;
   }
@@ -54,16 +61,18 @@ public class CallGraph {
     CallGraph.callStack = new Stack<>();
     CallGraph.callGraph = new BaseGraph<>();
     CallGraph.graphComponent = null;
+    CallGraph.numNodes = 0;
+    CallGraph.numEdges = 0;
     CallGraph.maxDuration = 0;
     CallGraph.maxCount = 1;
+    CallGraph.maxInstrCount = 0;
+    CallGraph.curGraphMode = GuiPanel.GraphHighlight.NONE;
 
     CallGraph.graphPanel.removeAll();
     Graphics graphics = graphPanel.getGraphics();
     if (graphics != null) {
       graphPanel.update(graphics);
     }
-
-    updateCallGraph();
   }
 
   public static int getMethodCount() {
@@ -71,6 +80,13 @@ public class CallGraph {
       return graphMethList.size();
     }
     return 0;
+  }
+
+  public static MethodInfo getLastMethod() {
+    if (graphMethList == null || graphMethList.size() < 1) {
+      return null;
+    }
+    return CallGraph.graphMethList.get(graphMethList.size()-1);
   }
   
   public static void saveImageAsFile(String name) {
@@ -89,19 +105,30 @@ public class CallGraph {
   
   /**
    * updates the call graph display
+   * @param gmode
    * @return true if graph was updated
    */  
-  public static boolean updateCallGraph() {
+  public static boolean updateCallGraph(GuiPanel.GraphHighlight gmode) {
     boolean updated = false;
-    if (!GuiPanel.isCallGraphTabSelected()) {
-      return updated;
-    }
-    if (bUpdateNeeded && CallGraph.callGraph != null && CallGraph.graphPanel != null) {
-      bUpdateNeeded = false;
 
+    // exit if the graphics panel has not been established
+    if (CallGraph.callGraph == null || CallGraph.graphPanel == null) {
+      return false;
+    }
+    
+    // only run if a node or edge has been added to the graph or a color mode has changed
+    if (CallGraph.callGraph.getEdgeCount() != CallGraph.numEdges ||
+        CallGraph.callGraph.getVertexCount() != CallGraph.numNodes ||
+        CallGraph.curGraphMode != gmode) {
+
+      // update the state
+      CallGraph.numEdges = CallGraph.callGraph.getEdgeCount();
+      CallGraph.numNodes = CallGraph.callGraph.getVertexCount();
+      CallGraph.curGraphMode = gmode;
+
+      // if no graph has been composed yet, set it up now
       mxGraph graph = CallGraph.callGraph.getGraph();
       if (graphComponent == null) {
-        // first time through - create the graph component
         graphComponent = new mxGraphComponent(graph);
         graphComponent.setConnectable(false);
         
@@ -109,58 +136,99 @@ public class CallGraph {
         graphComponent.getGraphControl().addMouseListener(new MouseAdapter() {
           @Override
           public void mouseReleased(MouseEvent e) {
-            mxGraphHandler handler = graphComponent.getGraphHandler();
-            mxCell cell = (mxCell) handler.getGraphComponent().getCellAt(e.getX(), e.getY());
-            if (cell != null && cell.isVertex()) {
-              MethodInfo selected = CallGraph.callGraph.getSelectedNode();
-              JOptionPane.showMessageDialog (null,
-                  "Method:   " + selected.getFullName() + NEWLINE +
-                  "Count:    " + selected.getCount() + NEWLINE +
-                  "Duration: " + selected.getDuration() + NEWLINE +
-                  "1st call: " + selected.getFirstLine() + NEWLINE +
-                  "last call:" + selected.getLastLine(),
-                  "Method Info",
-                  JOptionPane.INFORMATION_MESSAGE);
-            }
+            displaySelectedMethodInfo(e.getX(), e.getY());
           }
         });
         CallGraph.graphPanel.add(graphComponent);
-      } else {
-        // otherwise, just update the contents of the graph component
-        Graphics graphics = graphPanel.getGraphics();
-        if (graphics != null) {
-          graphPanel.update(graphics);
-        }
       }
 
       // update colors based on time usage or number of calls
       for (int ix = 0; ix < CallGraph.graphMethList.size(); ix++) {
         MethodInfo mthNode = CallGraph.graphMethList.get(ix);
-        long duration = CallGraph.graphMethList.get(ix).getDuration();
-        // colors used in janalyzer: "#FFA07A", "#FA8072", "#FF0000", "#8B0000", "pink", "green"
-        String color = "D2E9FF";
-        if (duration >= (maxDuration * 8) / 10) {
-          color = "FF6666";
+        String color;
+        int colorR, colorG, colorB;
+        double ratio;
+        switch (gmode) {
+          default :
+            ratio = 0.0;
+            color = "D2E9FF";
+            break;
+          case TIME :
+            long duration = CallGraph.graphMethList.get(ix).getDuration();
+            ratio = (double) duration / (double) maxDuration;
+            // this runs from FF6666 (red) to FFCCCC (light red)
+            colorR = 255;
+            colorG = 204 - (int) (102.0 * ratio);
+            colorB = 204 - (int) (102.0 * ratio);
+            color = String.format ("%06x", (colorR << 16) + (colorG << 8) + colorB);
+            if (ratio < 0.2) {
+              color = "D2E9FF";
+            }
+            break;
+          case INSTRUCTION :
+            int instruction = CallGraph.graphMethList.get(ix).getInstructionCount();
+            ratio = (double) instruction / (double) maxInstrCount;
+            // this runs from 66FF66 (green) to CCFFCC (light green)
+            colorR = 204 - (int) (102.0 * ratio);
+            colorG = 255;
+            colorB = 204 - (int) (102.0 * ratio);
+            color = String.format ("%06x", (colorR << 16) + (colorG << 8) + colorB);
+            if (ratio < 0.2) {
+              color = "D2E9FF";
+            }
+            break;
+          case ITERATION :
+            int count = CallGraph.graphMethList.get(ix).getCount();
+            ratio = (double) count / (double) maxCount;
+            // this runs from 6666FF (blue) to CCCCFF (light blue)
+            colorR = 204 - (int) (102.0 * ratio);
+            colorG = 204 - (int) (102.0 * ratio);
+            colorB = 255;
+            color = String.format ("%06x", (colorR << 16) + (colorG << 8) + colorB);
+            if (ratio < 0.2 || (count < 10 && count < maxCount)) {
+              color = "D2E9FF";
+            }
+            break;
         }
-        else if (duration >= (maxDuration * 6) / 10) {
-          color = "FF8888";
+
+        // set minimum threshhold
+        if (ratio < 0.2 ) {
+          color = "D2E9FF";
         }
-        else if (duration >= (maxDuration * 4) / 10) {
-          color = "FFAAAA";
-        }
-        else if (duration >= (maxDuration * 2) / 10) {
-          color = "FFCCCC";
-        }
+
         CallGraph.callGraph.colorVertex(mthNode, color);
         //System.out.println(color + " for: " + mthNode.getFullName());
       }
 
+      // update the contents of the graph component
+      Graphics graphics = graphPanel.getGraphics();
+      if (graphics != null) {
+        graphPanel.update(graphics);
+      }
+      
       // update the graph layout
       CallGraph.callGraph.layoutGraph();
       updated = true;
     }
 
     return updated;
+  }
+
+  public static void displaySelectedMethodInfo(int x, int y) {
+    mxGraphHandler handler = graphComponent.getGraphHandler();
+    mxCell cell = (mxCell) handler.getGraphComponent().getCellAt(x, y);
+    if (cell != null && cell.isVertex()) {
+      MethodInfo selected = CallGraph.callGraph.getSelectedNode();
+      JOptionPane.showMessageDialog (null,
+          "Method:      " + selected.getFullName() + NEWLINE +
+          "Instr Count: " + selected.getInstructionCount() + NEWLINE +
+          "Duration:    " + selected.getDuration() + NEWLINE +
+          "Iter:        " + selected.getCount() + NEWLINE +
+          "1st call:    " + selected.getFirstLine() + NEWLINE +
+          "last call:   " + selected.getLastLine(),
+          "Method Info",
+          JOptionPane.INFORMATION_MESSAGE);
+    }
   }
   
   /**
@@ -180,7 +248,6 @@ public class CallGraph {
     }
     
     // find method entry in list
-    boolean bUpdate = false;
     MethodInfo mthNode = null;
     boolean newnode = false;
     int count = CallGraph.graphMethList.size();
@@ -217,7 +284,6 @@ public class CallGraph {
         CallGraph.graphMethList.add(parNode);
         //System.out.println("AddParent: " + parNode.getClassAndMethod());
         CallGraph.callGraph.addVertex(parNode, parNode.getCGName());
-        bUpdate = true;
       }
       //System.out.println("AddMethod: (" + mthNode.getCount() + ") " + mthNode.getClassAndMethod() +
       //    ", parent = " + parNode.getClassAndMethod());
@@ -230,16 +296,9 @@ public class CallGraph {
     // add node (if not previously defined) and/or edge (if parent defined) to graph
     if (newnode) {
       CallGraph.callGraph.addVertex(mthNode, mthNode.getCGName());
-      bUpdate = true;
     }
     if (parNode != null && CallGraph.callGraph.getEdge(parNode, mthNode) == null) {
       CallGraph.callGraph.addEdge(parNode, mthNode, null);
-      bUpdate = true;
-    }
-    
-    // update graph
-    if (bUpdate) {
-      bUpdateNeeded = true; // TODO: really needs to be locked
     }
   }
 
@@ -264,6 +323,10 @@ public class CallGraph {
         long newDuration = mthNode.getDuration();
         if (CallGraph.maxDuration < newDuration) {
           CallGraph.maxDuration = newDuration;
+        }
+        int newInsCount = mthNode.getInstructionCount();
+        if (CallGraph.maxInstrCount < newInsCount) {
+          CallGraph.maxInstrCount = newInsCount;
         }
         //System.out.println("Return: (" + mthNode.getDuration() + ") " + mthNode.getClassAndMethod());
       }

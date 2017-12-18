@@ -48,6 +48,8 @@ public class GuiPanel {
   
   public enum Orient { NONE, LEFT, RIGHT, CENTER }
 
+  public enum GraphHighlight { NONE, TIME, INSTRUCTION, ITERATION }
+
   private static JFrame         mainFrame;
   private static JTabbedPane    tabPanel;
   private static JTextPane      debugTextPane;
@@ -68,6 +70,7 @@ public class GuiPanel {
   private static boolean        bRunLogger;
   private static boolean        bRunGraphics;
   private static boolean        bFileLoading;
+  private static GraphHighlight graphMode;
   
   private static final Dimension SCREEN_DIM = Toolkit.getDefaultToolkit().getScreenSize();
 
@@ -104,26 +107,55 @@ public class GuiPanel {
     // we need a filechooser for the Save buttons
     GuiPanel.fileSelector = new JFileChooser();
 
+    GuiPanel.graphMode = GraphHighlight.NONE;
+    
     // add the components
-    GuiPanel.pktsBuffered = makeTextField(GuiPanel.mainFrame, gbag, GuiPanel.Orient.LEFT, false,
-        "Buffer", "------", false);
-    GuiPanel.pktsLost = makeTextField(GuiPanel.mainFrame, gbag, GuiPanel.Orient.LEFT, false,
-        "Pkts Lost", "------", false);
-    GuiPanel.pktsRead = makeTextField(GuiPanel.mainFrame, gbag, GuiPanel.Orient.LEFT, false,
-        "Pkts Read", "------", false);
-    GuiPanel.linesProcessed = makeTextField(GuiPanel.mainFrame, gbag, GuiPanel.Orient.LEFT, false,
-        "Processed", "------", false);
-    GuiPanel.methodsFound = makeTextField(GuiPanel.mainFrame, gbag, GuiPanel.Orient.LEFT, true,
-        "Methods", "------", false);
-    JButton clearButton = makeButton(GuiPanel.mainFrame, gbag, GuiPanel.Orient.LEFT, false,
-        "Clear");
-    JButton pauseButton = makeButton(GuiPanel.mainFrame, gbag, GuiPanel.Orient.LEFT, false,
+    
+    // the button controls
+    JPanel panel3 = makePanel(GuiPanel.mainFrame, gbag, GuiPanel.Orient.LEFT, false,
+        "Controls");
+    GridBagLayout gbag3 = (GridBagLayout) panel3.getLayout();
+    
+    JButton pauseButton = makeButton(panel3, gbag3, GuiPanel.Orient.LEFT, true,
         "Pause");
-    JButton saveGrphButton = makeButton(GuiPanel.mainFrame, gbag, GuiPanel.Orient.LEFT, false,
+    JButton clearButton = makeButton(panel3, gbag3, GuiPanel.Orient.LEFT, true,
+        "Clear");
+    JButton saveGrphButton = makeButton(panel3, gbag3, GuiPanel.Orient.LEFT, true,
         "Save Graph");
-    JButton loadFileButton = makeButton(GuiPanel.mainFrame, gbag, GuiPanel.Orient.LEFT, true,
+    JButton loadFileButton = makeButton(panel3, gbag3, GuiPanel.Orient.LEFT, true,
         "Load File");
 
+    // the statistic information
+    JPanel panel1 = makePanel(GuiPanel.mainFrame, gbag, GuiPanel.Orient.LEFT, false,
+        "Statistics");
+    GridBagLayout gbag1 = (GridBagLayout) panel1.getLayout();
+
+    GuiPanel.pktsBuffered = makeTextField(panel1, gbag1, GuiPanel.Orient.LEFT, false,
+        "Buffer", "------", false);
+    GuiPanel.linesProcessed = makeTextField(panel1, gbag1, GuiPanel.Orient.LEFT, true,
+        "Processed", "------", false);
+    GuiPanel.pktsLost = makeTextField(panel1, gbag1, GuiPanel.Orient.LEFT, false,
+        "Pkts Lost", "------", false);
+    GuiPanel.methodsFound = makeTextField(panel1, gbag1, GuiPanel.Orient.LEFT, true,
+        "Methods", "------", false);
+    GuiPanel.pktsRead = makeTextField(panel1, gbag1, GuiPanel.Orient.LEFT, false,
+        "Pkts Read", "------", false);
+    makeLabel(panel1, gbag1, GuiPanel.Orient.LEFT, true, ""); // keeps the columns even
+
+    // the selections for graphics highlighting
+    JPanel panel2 = makePanel(GuiPanel.mainFrame, gbag, GuiPanel.Orient.LEFT, true,
+        "Graph Highlighting");
+    GridBagLayout gbag2 = (GridBagLayout) panel2.getLayout();
+    
+    JRadioButton timeSelBtn = makeRadiobutton(panel2, gbag2, Orient.LEFT, true,
+        "Highlight time elapsed", 0);
+    JRadioButton instrSelBtn = makeRadiobutton(panel2, gbag2, Orient.LEFT, true,
+        "Highlight instruction usage", 0);
+    JRadioButton iterSelBtn = makeRadiobutton(panel2, gbag2, Orient.LEFT, true,
+        "Highlight iterations", 0);
+    JRadioButton noneSelBtn = makeRadiobutton(panel2, gbag2, Orient.LEFT, true,
+        "Highlight off", 1);
+    
     // add a tabbed panel to it
     GuiPanel.tabPanel = new JTabbedPane();
     gbag.setConstraints(GuiPanel.tabPanel, setGbagConstraintsPanel());
@@ -154,10 +186,58 @@ public class GuiPanel {
     GuiPanel.tabPanel.addChangeListener(new ChangeListener() {
       @Override
       public void stateChanged(ChangeEvent e) {
-        if (GuiPanel.tabPanel.getSelectedIndex() == 1) {
-          if (CallGraph.updateCallGraph()) {
+        if (GuiPanel.tabPanel.getSelectedIndex() == 1) { // 1 = the graph tab selection
+          if (CallGraph.updateCallGraph(graphMode)) {
             repackFrame();
           }
+        }
+      }
+    });
+    timeSelBtn.addActionListener(new ActionListener() {
+      @Override
+      public void actionPerformed(java.awt.event.ActionEvent evt) {
+        instrSelBtn.setSelected(false);
+        iterSelBtn.setSelected(false);
+        noneSelBtn.setSelected(false);
+        graphMode = GraphHighlight.TIME;
+        if (isCallGraphTabSelected()) {
+          CallGraph.updateCallGraph(graphMode);
+        }
+      }
+    });
+    instrSelBtn.addActionListener(new ActionListener() {
+      @Override
+      public void actionPerformed(java.awt.event.ActionEvent evt) {
+        timeSelBtn.setSelected(false);
+        iterSelBtn.setSelected(false);
+        noneSelBtn.setSelected(false);
+        graphMode = GraphHighlight.INSTRUCTION;
+        if (isCallGraphTabSelected()) {
+          CallGraph.updateCallGraph(graphMode);
+        }
+      }
+    });
+    iterSelBtn.addActionListener(new ActionListener() {
+      @Override
+      public void actionPerformed(java.awt.event.ActionEvent evt) {
+        timeSelBtn.setSelected(false);
+        instrSelBtn.setSelected(false);
+        noneSelBtn.setSelected(false);
+        graphMode = GraphHighlight.ITERATION;
+        if (isCallGraphTabSelected()) {
+          CallGraph.updateCallGraph(graphMode);
+        }
+      }
+    });
+    noneSelBtn.addActionListener(new ActionListener() {
+      @Override
+      public void actionPerformed(java.awt.event.ActionEvent evt) {
+        timeSelBtn.setSelected(false);
+        instrSelBtn.setSelected(false);
+        iterSelBtn.setSelected(false);
+        graphMode = GraphHighlight.NONE;
+        if (isCallGraphTabSelected()) {
+          CallGraph.updateCallGraph(graphMode);
         }
       }
     });
@@ -300,6 +380,28 @@ public class GuiPanel {
           else if (typestr.equals("RETURN")) {
             CallGraph.callGraphReturn(tstamp, content);
           }
+          else if (typestr.equals("STATS")) {
+            MethodInfo mthNode = CallGraph.getLastMethod();
+            if (mthNode != null) {
+              String[] words = content.trim().split("[ ]+");
+              if (words.length >= 2) {
+                if (words[0].equals("InsCount:")) {
+                  try {
+                    int insCount = Integer.parseUnsignedInt(words[1]);
+                    if (mthNode.isReturned()) {
+                      mthNode.setInstrExit(insCount);
+                    } else {
+                      mthNode.setInstrEntry(insCount);
+                    }
+                  } catch (NumberFormatException ex) {
+                    // ignore
+                  }
+                } else if (words[0].equals("uninstrumented:")) {
+                  // save uninstrumented call in list
+                }
+              }
+            }
+          }
         }
           
         // now send to the debug message display
@@ -330,7 +432,7 @@ public class GuiPanel {
     public void actionPerformed(ActionEvent e) {
       // if Call Graph tab selected, update graph
       if (isCallGraphTabSelected()) {
-        if (CallGraph.updateCallGraph()) {
+        if (CallGraph.updateCallGraph(graphMode)) {
           repackFrame();
         }
       }
@@ -402,6 +504,9 @@ public class GuiPanel {
     
     // clear the graphics panel
     CallGraph.clear();
+    if (isCallGraphTabSelected()) {
+      CallGraph.updateCallGraph(GuiPanel.GraphHighlight.NONE);
+    }
     
     // clear the stats
     GuiPanel.linesRead = 0;
@@ -588,7 +693,8 @@ public class GuiPanel {
     
     JTextField field = new JTextField();
     field.setText(value);
-    field.setPreferredSize(new Dimension(100, 25));
+    field.setPreferredSize(new Dimension(80, 25));
+    field.setMinimumSize(new Dimension(80, 25));
     field.setEditable(writable);
     gridbag.setConstraints(field, c);
     container.add(field);
@@ -697,12 +803,20 @@ public class GuiPanel {
    * @param name    - the name to display as a label preceeding the widget
    * @return the panel
    */
-  private static JPanel makePanel(Container container, GridBagLayout gridbag, String name) {
-    // create the scroll panel and apply constraints
+  private static JPanel makePanel(Container container, GridBagLayout gridbag, Orient pos,
+                  boolean end, String name) {
+    // create the panel and apply constraints
     JPanel panel = new JPanel();
     panel.setBorder(BorderFactory.createTitledBorder(name));
-    gridbag.setConstraints(panel, setGbagConstraintsPanel());
+
+    // create a layout for inside the panel
+    GridBagLayout gbag = new GridBagLayout();
+    panel.setFont(new Font("SansSerif", Font.PLAIN, 14));
+    panel.setLayout(gbag);
+
+    // place the panel in the specified container
     if (container != null) {
+      gridbag.setConstraints(panel, setGbagConstraints(pos, end));
       container.add(panel);
     }
     return panel;

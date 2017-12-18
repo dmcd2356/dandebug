@@ -117,6 +117,7 @@ public class Logger {
     setTypeColor ("ENTRY",  TextColor.Brown,  FontType.Normal);
     setTypeColor ("CALL",   TextColor.Gold,   FontType.Normal);
     setTypeColor ("RETURN", TextColor.Gold,   FontType.Normal);
+    setTypeColor ("STATS",  TextColor.Gold,   FontType.BoldItalic);
     setTypeColor ("STACK",  TextColor.Blue,   FontType.Normal);
     setTypeColor ("STACKS", TextColor.Blue,   FontType.Italic);
     setTypeColor ("STACKI", TextColor.Blue,   FontType.Bold);
