@@ -33,12 +33,12 @@ public class CallGraph {
   private static mxGraphComponent graphComponent = null;
   private static BaseGraph<MethodInfo> callGraph = null;
   private static List<MethodInfo> graphMethList = null;
+  private static MethodInfo       lastMethod = null;
   private static Stack<Integer>   callStack = null;
   private static int numNodes;
   private static int numEdges;
   private static long maxDuration;
   private static int maxCount;
-  private static int maxInstrCount;
   private static GuiPanel.GraphHighlight curGraphMode;
   
   public static void initCallGraph(JPanel panel) {
@@ -50,7 +50,6 @@ public class CallGraph {
     CallGraph.numEdges = 0;
     CallGraph.maxDuration = 0;
     CallGraph.maxCount = 1;
-    CallGraph.maxInstrCount = 0;
     CallGraph.curGraphMode = GuiPanel.GraphHighlight.NONE;
 
     CallGraph.graphPanel = panel;
@@ -65,7 +64,6 @@ public class CallGraph {
     CallGraph.numEdges = 0;
     CallGraph.maxDuration = 0;
     CallGraph.maxCount = 1;
-    CallGraph.maxInstrCount = 0;
     CallGraph.curGraphMode = GuiPanel.GraphHighlight.NONE;
 
     CallGraph.graphPanel.removeAll();
@@ -86,7 +84,7 @@ public class CallGraph {
     if (graphMethList == null || graphMethList.size() < 1) {
       return null;
     }
-    return CallGraph.graphMethList.get(graphMethList.size()-1);
+    return CallGraph.lastMethod;
   }
   
   public static void saveImageAsFile(String name) {
@@ -142,6 +140,16 @@ public class CallGraph {
         CallGraph.graphPanel.add(graphComponent);
       }
 
+      // find max instruction count
+      int maxInstrCount = 0;
+      for (int ix = 0; ix < CallGraph.graphMethList.size(); ix++) {
+        MethodInfo mthNode = CallGraph.graphMethList.get(ix);
+        int newInsCount = mthNode.getInstructionCount();
+        if (maxInstrCount < newInsCount) {
+          maxInstrCount = newInsCount;
+        }
+      }
+      
       // update colors based on time usage or number of calls
       for (int ix = 0; ix < CallGraph.graphMethList.size(); ix++) {
         MethodInfo mthNode = CallGraph.graphMethList.get(ix);
@@ -197,7 +205,7 @@ public class CallGraph {
         }
 
         CallGraph.callGraph.colorVertex(mthNode, color);
-        //System.out.println(color + " for: " + mthNode.getFullName());
+        // System.out.println(color + " for: " + mthNode.getFullName());
       }
 
       // update the contents of the graph component
@@ -255,6 +263,7 @@ public class CallGraph {
       if (CallGraph.graphMethList.get(ix).getFullName().equals(method)) {
         CallGraph.callStack.push(ix); // save entry as last method called
         mthNode = CallGraph.graphMethList.get(ix);
+        CallGraph.lastMethod = mthNode;
         mthNode.incCount(line); // inc # of times method called
         int newCount = mthNode.getCount();
         if (CallGraph.maxCount < newCount) {
@@ -267,6 +276,7 @@ public class CallGraph {
       CallGraph.callStack.push(count); // save entry as last method called
       mthNode = new MethodInfo(method, tstamp, line);
       CallGraph.graphMethList.add(mthNode);
+      CallGraph.lastMethod = mthNode;
       newnode = true;
     }
 
@@ -320,13 +330,10 @@ public class CallGraph {
       if (ix >= 0 && ix < CallGraph.graphMethList.size()) {
         MethodInfo mthNode = CallGraph.graphMethList.get(ix);
         mthNode.exit(tstamp);
+        CallGraph.lastMethod = mthNode;
         long newDuration = mthNode.getDuration();
         if (CallGraph.maxDuration < newDuration) {
           CallGraph.maxDuration = newDuration;
-        }
-        int newInsCount = mthNode.getInstructionCount();
-        if (CallGraph.maxInstrCount < newInsCount) {
-          CallGraph.maxInstrCount = newInsCount;
         }
         //System.out.println("Return: (" + mthNode.getDuration() + ") " + mthNode.getClassAndMethod());
       }

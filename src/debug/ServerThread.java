@@ -20,8 +20,6 @@ import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.util.LinkedList;
 import java.util.Queue;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import javax.swing.Timer;
 
 // provides callback interface

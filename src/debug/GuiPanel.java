@@ -368,39 +368,41 @@ public class GuiPanel {
             // invalid line - skip
             return;
           }
-          // send CALL & RETURN info to CallGraph
-          if (typestr.equals("CALL")) {
-            int offset = content.indexOf('|');
-            if (offset > 0) {
-              String method = content.substring(0, offset).trim();
-              String parent = content.substring(offset + 1).trim();
-              CallGraph.callGraphAddMethod(tstamp, method, parent, count);
-            }
-          }
-          else if (typestr.equals("RETURN")) {
-            CallGraph.callGraphReturn(tstamp, content);
-          }
-          else if (typestr.equals("STATS")) {
-            MethodInfo mthNode = CallGraph.getLastMethod();
-            if (mthNode != null) {
-              String[] words = content.trim().split("[ ]+");
-              if (words.length >= 2) {
-                if (words[0].equals("InsCount:")) {
-                  try {
-                    int insCount = Integer.parseUnsignedInt(words[1]);
-                    if (mthNode.isReturned()) {
-                      mthNode.setInstrExit(insCount);
-                    } else {
-                      mthNode.setInstrEntry(insCount);
+          // extract call processing info and send to CallGraph
+          switch (typestr) {
+            case "CALL":
+              int offset = content.indexOf('|');
+              if (offset > 0) {
+                String method = content.substring(0, offset).trim();
+                String parent = content.substring(offset + 1).trim();
+                CallGraph.callGraphAddMethod(tstamp, method, parent, count);
+              } break;
+            case "RETURN":
+              CallGraph.callGraphReturn(tstamp, content);
+              break;
+            case "STATS":
+              MethodInfo mthNode = CallGraph.getLastMethod();
+              if (mthNode != null) {
+                String[] words = content.trim().split("[ ]+");
+                if (words.length >= 2) {
+                  if (words[0].equals("InsCount:")) {
+                    try {
+                      int insCount = Integer.parseUnsignedInt(words[1]);
+                      if (mthNode.isReturned()) {
+                        mthNode.setInstrExit(insCount);
+                      } else {
+                        mthNode.setInstrEntry(insCount);
+                      }
+                    } catch (NumberFormatException ex) {
+                      // ignore
                     }
-                  } catch (NumberFormatException ex) {
-                    // ignore
+                  } else if (words[0].equals("uninstrumented:")) {
+                    // save uninstrumented call in list
                   }
-                } else if (words[0].equals("uninstrumented:")) {
-                  // save uninstrumented call in list
                 }
-              }
-            }
+              } break;
+            default:
+              break;
           }
         }
           
