@@ -48,7 +48,7 @@ public class GuiPanel {
   
   public enum Orient { NONE, LEFT, RIGHT, CENTER }
 
-  public enum GraphHighlight { NONE, TIME, INSTRUCTION, ITERATION }
+  public enum GraphHighlight { NONE, STATUS, TIME, INSTRUCTION, ITERATION }
 
   private static JFrame         mainFrame;
   private static JTabbedPane    tabPanel;
@@ -153,6 +153,8 @@ public class GuiPanel {
         "Highlight instruction usage", 0);
     JRadioButton iterSelBtn = makeRadiobutton(panel2, gbag2, Orient.LEFT, true,
         "Highlight iterations", 0);
+    JRadioButton statSelBtn = makeRadiobutton(panel2, gbag2, Orient.LEFT, true,
+        "Highlight status", 0);
     JRadioButton noneSelBtn = makeRadiobutton(panel2, gbag2, Orient.LEFT, true,
         "Highlight off", 1);
     
@@ -198,6 +200,7 @@ public class GuiPanel {
       public void actionPerformed(java.awt.event.ActionEvent evt) {
         instrSelBtn.setSelected(false);
         iterSelBtn.setSelected(false);
+        statSelBtn.setSelected(false);
         noneSelBtn.setSelected(false);
         graphMode = GraphHighlight.TIME;
         if (isCallGraphTabSelected()) {
@@ -210,6 +213,7 @@ public class GuiPanel {
       public void actionPerformed(java.awt.event.ActionEvent evt) {
         timeSelBtn.setSelected(false);
         iterSelBtn.setSelected(false);
+        statSelBtn.setSelected(false);
         noneSelBtn.setSelected(false);
         graphMode = GraphHighlight.INSTRUCTION;
         if (isCallGraphTabSelected()) {
@@ -222,8 +226,22 @@ public class GuiPanel {
       public void actionPerformed(java.awt.event.ActionEvent evt) {
         timeSelBtn.setSelected(false);
         instrSelBtn.setSelected(false);
+        statSelBtn.setSelected(false);
         noneSelBtn.setSelected(false);
         graphMode = GraphHighlight.ITERATION;
+        if (isCallGraphTabSelected()) {
+          CallGraph.updateCallGraph(graphMode);
+        }
+      }
+    });
+    statSelBtn.addActionListener(new ActionListener() {
+      @Override
+      public void actionPerformed(java.awt.event.ActionEvent evt) {
+        timeSelBtn.setSelected(false);
+        instrSelBtn.setSelected(false);
+        iterSelBtn.setSelected(false);
+        noneSelBtn.setSelected(false);
+        graphMode = GraphHighlight.STATUS;
         if (isCallGraphTabSelected()) {
           CallGraph.updateCallGraph(graphMode);
         }
@@ -235,6 +253,7 @@ public class GuiPanel {
         timeSelBtn.setSelected(false);
         instrSelBtn.setSelected(false);
         iterSelBtn.setSelected(false);
+        statSelBtn.setSelected(false);
         graphMode = GraphHighlight.NONE;
         if (isCallGraphTabSelected()) {
           CallGraph.updateCallGraph(graphMode);
@@ -263,13 +282,17 @@ public class GuiPanel {
       @Override
       public void actionPerformed(java.awt.event.ActionEvent evt) {
         if (pauseButton.getText().equals("Pause")) {
-          pktTimer.stop();
+          if (pktTimer != null) {
+            pktTimer.stop();
+          }
           if (graphTimer != null) {
             graphTimer.stop();
           }
           pauseButton.setText("Resume");
         } else {
-          pktTimer.start();
+          if (pktTimer != null) {
+            pktTimer.start();
+          }
           if (graphTimer != null) {
             graphTimer.start();
           }
@@ -345,7 +368,9 @@ public class GuiPanel {
         GuiPanel.udpThread.closeInputFile();
         
         // also, stop the packet listener
-        pktTimer.stop();
+        if (pktTimer != null) {
+          pktTimer.stop();
+        }
         GuiPanel.bFileLoading = false;
       }
 
@@ -454,7 +479,9 @@ public class GuiPanel {
     int retVal = GuiPanel.fileSelector.showOpenDialog(GuiPanel.mainFrame);
     if (retVal == JFileChooser.APPROVE_OPTION) {
       // stop the timers from updating the display
-      pktTimer.stop();
+      if (pktTimer != null) {
+        pktTimer.stop();
+      }
       if (graphTimer != null) {
         graphTimer.stop();
       }
@@ -471,7 +498,9 @@ public class GuiPanel {
       GuiPanel.bFileLoading = true;
 
       // now restart the update timers
-      pktTimer.start();
+      if (pktTimer != null) {
+        pktTimer.start();
+      }
       if (graphTimer != null) {
         graphTimer.start();
       }

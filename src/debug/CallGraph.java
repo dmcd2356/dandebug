@@ -153,16 +153,22 @@ public class CallGraph {
       // update colors based on time usage or number of calls
       for (int ix = 0; ix < CallGraph.graphMethList.size(); ix++) {
         MethodInfo mthNode = CallGraph.graphMethList.get(ix);
-        String color;
         int colorR, colorG, colorB;
-        double ratio;
+        String color = "D2E9FF";  // default color is greay
+        double ratio = 0.0;
         switch (gmode) {
           default :
-            ratio = 0.0;
-            color = "D2E9FF";
+            break;
+          case STATUS :
+            // mark methods that have not exited
+            if (mthNode.getInstructionCount() == 0) {
+              color = "CCFFFF"; // cyan
+              ratio = 1.0;
+            }
+            // TODO: check for warnings, errors, exceptions
             break;
           case TIME :
-            long duration = CallGraph.graphMethList.get(ix).getDuration();
+            long duration = mthNode.getDuration();
             ratio = (double) duration / (double) maxDuration;
             // this runs from FF6666 (red) to FFCCCC (light red)
             colorR = 255;
@@ -174,7 +180,7 @@ public class CallGraph {
             }
             break;
           case INSTRUCTION :
-            int instruction = CallGraph.graphMethList.get(ix).getInstructionCount();
+            int instruction = mthNode.getInstructionCount();
             ratio = (double) instruction / (double) maxInstrCount;
             // this runs from 66FF66 (green) to CCFFCC (light green)
             colorR = 204 - (int) (102.0 * ratio);
@@ -186,7 +192,7 @@ public class CallGraph {
             }
             break;
           case ITERATION :
-            int count = CallGraph.graphMethList.get(ix).getCount();
+            int count = mthNode.getCount();
             ratio = (double) count / (double) maxCount;
             // this runs from 6666FF (blue) to CCCCFF (light blue)
             colorR = 204 - (int) (102.0 * ratio);
@@ -205,7 +211,7 @@ public class CallGraph {
         }
 
         CallGraph.callGraph.colorVertex(mthNode, color);
-        // System.out.println(color + " for: " + mthNode.getFullName());
+        //System.out.println(color + " for: " + mthNode.getFullName());
       }
 
       // update the contents of the graph component
@@ -251,9 +257,6 @@ public class CallGraph {
     if (method == null || method.isEmpty() || CallGraph.graphMethList == null) {
       return;
     }
-    if (parent == null) {
-      parent = "";
-    }
     
     // find method entry in list
     MethodInfo mthNode = null;
@@ -282,19 +285,19 @@ public class CallGraph {
 
     // find parent entry
     MethodInfo parNode = null;
-    if (!parent.isEmpty()) {
+    if (parent != null && !parent.isEmpty()) {
       for (int ix = 0; ix < CallGraph.graphMethList.size(); ix++) {
         if (CallGraph.graphMethList.get(ix).getFullName().equals(parent)) {
           parNode = CallGraph.graphMethList.get(ix);
           break;
         }
       }
-      if (parNode == null) {
-        parNode = new MethodInfo(parent, 0, -1);
-        CallGraph.graphMethList.add(parNode);
-        //System.out.println("AddParent: " + parNode.getClassAndMethod());
-        CallGraph.callGraph.addVertex(parNode, parNode.getCGName());
-      }
+//      if (parNode == null) {
+//        parNode = new MethodInfo(parent, 0, -1);
+//        CallGraph.graphMethList.add(parNode);
+//        //System.out.println("AddParent: " + parNode.getClassAndMethod());
+//        CallGraph.callGraph.addVertex(parNode, parNode.getCGName());
+//      }
       //System.out.println("AddMethod: (" + mthNode.getCount() + ") " + mthNode.getClassAndMethod() +
       //    ", parent = " + parNode.getClassAndMethod());
     }
