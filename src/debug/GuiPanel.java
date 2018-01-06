@@ -393,6 +393,10 @@ public class GuiPanel {
             // invalid line - skip
             return;
           }
+
+          // get the current method that is being executed
+          MethodInfo mthNode = CallGraph.getLastMethod();
+
           // extract call processing info and send to CallGraph
           switch (typestr) {
             case "CALL":
@@ -405,8 +409,19 @@ public class GuiPanel {
             case "RETURN":
               CallGraph.callGraphReturn(tstamp, content);
               break;
+            case "ENTRY":
+              if (content.startsWith("catchException")) {
+                if (mthNode != null) {
+                  mthNode.setExecption(count);
+                }
+              }
+              break;
+            case "ERROR":
+              if (mthNode != null) {
+                mthNode.setError(count);
+              }
+              break;
             case "STATS":
-              MethodInfo mthNode = CallGraph.getLastMethod();
               if (mthNode != null) {
                 String[] words = content.trim().split("[ ]+");
                 if (words.length >= 2) {
@@ -425,7 +440,8 @@ public class GuiPanel {
                     // save uninstrumented call in list
                   }
                 }
-              } break;
+              }
+              break;
             default:
               break;
           }

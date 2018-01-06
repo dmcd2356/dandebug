@@ -22,6 +22,8 @@ public class MethodInfo {
   private long    duration_ms;    // total duration in method
   private long    start_ref;      // timestamp when method last called
   private boolean exit;           // true if return has been logged, false if method just entered
+  private int     ln_except;      // line number of last exception that occurred in this method
+  private int     ln_error;       // line number of last error that occurred in this method
   
   private static final String NEWLINE = System.getProperty("line.separator");
 
@@ -54,6 +56,8 @@ public class MethodInfo {
     instrExit = 0;
     instrCount = 0;
     exit = false;
+    ln_except = -1;
+    ln_error = -1;
     //System.out.println("start time: " + start_ref + " (init) - " + fullName);
   }
   
@@ -63,6 +67,14 @@ public class MethodInfo {
     start_ref = System.currentTimeMillis();
     exit = false;
     //System.out.println("start time: " + start_ref + ", count " + count + " - " +  fullName);
+  }
+
+  public void setExecption(int line) {
+    ln_except = line;
+  }
+  
+  public void setError(int line) {
+    ln_error = line;
   }
   
   public void exit(long tstamp) {
@@ -109,6 +121,14 @@ public class MethodInfo {
   
   public int getCount() {
     return count;
+  }
+  
+  public int getExecption() {
+    return ln_except;
+  }
+  
+  public int getError() {
+    return ln_error;
   }
   
   public int getFirstLine() {

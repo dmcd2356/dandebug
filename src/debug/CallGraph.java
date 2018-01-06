@@ -155,7 +155,7 @@ public class CallGraph {
         MethodInfo mthNode = CallGraph.graphMethList.get(ix);
         int colorR, colorG, colorB;
         String color = "D2E9FF";  // default color is greay
-        double ratio = 0.0;
+        double ratio = 1.0;
         switch (gmode) {
           default :
             break;
@@ -163,9 +163,13 @@ public class CallGraph {
             // mark methods that have not exited
             if (mthNode.getInstructionCount() == 0) {
               color = "CCFFFF"; // cyan
-              ratio = 1.0;
             }
-            // TODO: check for warnings, errors, exceptions
+            if (mthNode.getExecption() >= 0) {
+              color = "FF6666"; // orange
+            }
+            if (mthNode.getError() >= 0) {
+              color = "FFCCCC"; // pink
+            }
             break;
           case TIME :
             long duration = mthNode.getDuration();
