@@ -47,14 +47,14 @@ public class MethodInfo {
       }
     }
 
-    count = 1;
     lineFirst = line;
     lineLast = line;
-    duration_ms = 0;
+    count = 1;
     start_ref = tstamp;
+    duration_ms = -1;
     instrEntry = 0;
     instrExit = 0;
-    instrCount = 0;
+    instrCount = -1;
     exit = false;
     ln_except = -1;
     ln_error = -1;
@@ -78,10 +78,11 @@ public class MethodInfo {
   }
   
   public void exit(long tstamp) {
-    long elapsedTime = tstamp - start_ref;
-    if (elapsedTime > 0) {
-      duration_ms += elapsedTime;
+    if (duration_ms < 0) {
+      duration_ms = 0;
     }
+    long elapsedTime = (tstamp > start_ref) ? tstamp - start_ref : 0;
+    duration_ms += elapsedTime;
     exit = true;
     //System.out.println("exit time: " + currentTime + ", elapsed " + duration_ms + " - " +  fullName);
   }
@@ -91,6 +92,9 @@ public class MethodInfo {
   }
   
   public void setInstrExit(int count) {
+    if (instrCount < 0) {
+      instrCount = 0;
+    }
     instrExit = count;
     instrCount += (instrExit > instrEntry) ? instrExit - instrEntry : 0;
   }

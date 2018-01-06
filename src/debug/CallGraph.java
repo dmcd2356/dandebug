@@ -161,7 +161,7 @@ public class CallGraph {
             break;
           case STATUS :
             // mark methods that have not exited
-            if (mthNode.getInstructionCount() == 0) {
+            if (mthNode.getInstructionCount() < 0 || mthNode.getDuration() < 0) {
               color = "CCFFFF"; // cyan
             }
             if (mthNode.getExecption() >= 0) {
@@ -173,7 +173,7 @@ public class CallGraph {
             break;
           case TIME :
             long duration = mthNode.getDuration();
-            ratio = (double) duration / (double) maxDuration;
+            ratio = (duration < 0) ? 0.0 : (double) duration / (double) maxDuration;
             // this runs from FF6666 (red) to FFCCCC (light red)
             colorR = 255;
             colorG = 204 - (int) (102.0 * ratio);
@@ -185,7 +185,7 @@ public class CallGraph {
             break;
           case INSTRUCTION :
             int instruction = mthNode.getInstructionCount();
-            ratio = (double) instruction / (double) maxInstrCount;
+            ratio = (instruction < 0) ? 0.0 : (double) instruction / (double) maxInstrCount;
             // this runs from 66FF66 (green) to CCFFCC (light green)
             colorR = 204 - (int) (102.0 * ratio);
             colorG = 255;
@@ -239,11 +239,23 @@ public class CallGraph {
       MethodInfo selected = CallGraph.callGraph.getSelectedNode();
       JOptionPane.showMessageDialog (null,
           "Method:      " + selected.getFullName() + NEWLINE +
-          "Instr Count: " + selected.getInstructionCount() + NEWLINE +
-          "Duration:    " + selected.getDuration() + NEWLINE +
+          (selected.getDuration() < 0 ?
+              "(never returned)" + NEWLINE :
+              "Duration:    " + selected.getDuration() + NEWLINE) +
+          (selected.getInstructionCount() < 0 ?
+              "" :
+              "Instr Count: " + selected.getInstructionCount() + NEWLINE) +
           "Iter:        " + selected.getCount() + NEWLINE +
-          "1st call:    " + selected.getFirstLine() + NEWLINE +
-          "last call:   " + selected.getLastLine(),
+          "1st called @ line:     " + selected.getFirstLine() + NEWLINE +
+          (selected.getCount() <= 1 ?
+              "" :
+              "last called @ line:" + selected.getLastLine()) +
+          (selected.getExecption() <= 1 ?
+              "" :
+              "exception @ line:  " + selected.getExecption()) +
+          (selected.getError() <= 1 ?
+              "" :
+              "error @ line:      " + selected.getError()),
           "Method Info",
           JOptionPane.INFORMATION_MESSAGE);
     }
