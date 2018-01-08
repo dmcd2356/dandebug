@@ -80,7 +80,7 @@ public class GuiPanel {
    * @param bLogger - true if enable the debug message display
    * @param bGraph  - true if enable the graphics display
  */  
-  public void createDebugPanel(int port, boolean bLogger, boolean bGraph) {
+  public void createDebugPanel(int port, boolean tcp, boolean bLogger, boolean bGraph) {
     if (GuiPanel.mainFrame != null) {
       GuiPanel.mainFrame.dispose();
     }
@@ -319,7 +319,7 @@ public class GuiPanel {
     
     // start the UDP listener
     try {
-      GuiPanel.udpThread = new ServerThread(port);
+      GuiPanel.udpThread = new ServerThread(port, tcp);
       GuiPanel.udpThread.start();
       GuiPanel.listener = GuiPanel.udpThread;
     } catch (IOException ex) {
