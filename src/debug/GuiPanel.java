@@ -5,34 +5,29 @@
  */
 package debug;
 
-import java.awt.Container;
+import static debug.GuiControls.makeButton;
+import static debug.GuiControls.makeLabel;
+import static debug.GuiControls.makePanel;
+import static debug.GuiControls.makeRadiobutton;
+import static debug.GuiControls.makeTextField;
 import java.awt.Dimension;
 import java.awt.Font;
-import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
-import java.awt.Insets;
 import java.awt.Toolkit;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.File;
 import java.io.IOException;
 import javax.swing.BorderFactory;
-import javax.swing.DefaultListModel;
 import javax.swing.JButton;
-import javax.swing.JCheckBox;
-import javax.swing.JComboBox;
 import javax.swing.JFileChooser;
 import javax.swing.JFrame;
-import javax.swing.JLabel;
-import javax.swing.JList;
 import javax.swing.JPanel;
 import javax.swing.JRadioButton;
 import javax.swing.JScrollPane;
-import javax.swing.JSpinner;
 import javax.swing.JTabbedPane;
 import javax.swing.JTextField;
 import javax.swing.JTextPane;
-import javax.swing.SpinnerNumberModel;
 import javax.swing.Timer;
 import javax.swing.WindowConstants;
 import javax.swing.event.ChangeEvent;
@@ -44,21 +39,13 @@ import javax.swing.event.ChangeListener;
  */
 public class GuiPanel {
 
-  final static private int GAPSIZE = 4; // gap size to place on each side of each widget
-  
-  public enum Orient { NONE, LEFT, RIGHT, CENTER }
-
   public enum GraphHighlight { NONE, STATUS, TIME, INSTRUCTION, ITERATION }
 
   private static JFrame         mainFrame;
+  private static GridBagLayout  mainLayout;
   private static JTabbedPane    tabPanel;
   private static JTextPane      debugTextPane;
   private static JPanel         graphPanel;
-  private static JTextField     pktsBuffered;
-  private static JTextField     pktsRead;
-  private static JTextField     pktsLost;
-  private static JTextField     linesProcessed;
-  private static JTextField     methodsFound;
   private static JFileChooser   fileSelector;
   private static Dimension      framesize;
   private static ServerThread   udpThread;
@@ -100,9 +87,10 @@ public class GuiPanel {
     GuiPanel.mainFrame.setMinimumSize(framesize);
 
     // setup the layout for the frame
-    GridBagLayout gbag = new GridBagLayout();
     GuiPanel.mainFrame.setFont(new Font("SansSerif", Font.PLAIN, 14));
-    GuiPanel.mainFrame.setLayout(gbag);
+    GuiPanel.mainLayout = new GridBagLayout();
+    GuiPanel.mainFrame.setLayout(GuiPanel.mainLayout);
+    GuiControls.setMainFrame(mainFrame, mainLayout);
 
     // we need a filechooser for the Save buttons
     GuiPanel.fileSelector = new JFileChooser();
@@ -112,55 +100,35 @@ public class GuiPanel {
     // add the components
     
     // the button controls
-    JPanel panel3 = makePanel(GuiPanel.mainFrame, gbag, GuiPanel.Orient.LEFT, false,
-        "Controls");
-    GridBagLayout gbag3 = (GridBagLayout) panel3.getLayout();
-    
-    JButton pauseButton = makeButton(panel3, gbag3, GuiPanel.Orient.LEFT, true,
-        "Pause");
-    JButton clearButton = makeButton(panel3, gbag3, GuiPanel.Orient.LEFT, true,
-        "Clear");
-    JButton saveGrphButton = makeButton(panel3, gbag3, GuiPanel.Orient.LEFT, true,
-        "Save Graph");
-    JButton loadFileButton = makeButton(panel3, gbag3, GuiPanel.Orient.LEFT, true,
-        "Load File");
+    makePanel(null, "PNL_CONTROL", "Controls", GuiControls.Orient.LEFT, false);
+
+    makeButton("PNL_CONTROL", "BTN_PAUSE"    , "Pause"     , GuiControls.Orient.LEFT, true);
+    makeButton("PNL_CONTROL", "BTN_CLEAR"    , "Clear"     , GuiControls.Orient.LEFT, true);
+    makeButton("PNL_CONTROL", "BTN_SAVEGRAPH", "Save Graph", GuiControls.Orient.LEFT, true);
+    makeButton("PNL_CONTROL", "BTN_LOADFILE" , "Load File" , GuiControls.Orient.LEFT, true);
 
     // the statistic information
-    JPanel panel1 = makePanel(GuiPanel.mainFrame, gbag, GuiPanel.Orient.LEFT, false,
-        "Statistics");
-    GridBagLayout gbag1 = (GridBagLayout) panel1.getLayout();
+    makePanel(null, "PNL_STATS", "Statistics", GuiControls.Orient.LEFT, false);
 
-    GuiPanel.pktsBuffered = makeTextField(panel1, gbag1, GuiPanel.Orient.LEFT, false,
-        "Buffer", "------", false);
-    GuiPanel.linesProcessed = makeTextField(panel1, gbag1, GuiPanel.Orient.LEFT, true,
-        "Processed", "------", false);
-    GuiPanel.pktsLost = makeTextField(panel1, gbag1, GuiPanel.Orient.LEFT, false,
-        "Pkts Lost", "------", false);
-    GuiPanel.methodsFound = makeTextField(panel1, gbag1, GuiPanel.Orient.LEFT, true,
-        "Methods", "------", false);
-    GuiPanel.pktsRead = makeTextField(panel1, gbag1, GuiPanel.Orient.LEFT, false,
-        "Pkts Read", "------", false);
-    makeLabel(panel1, gbag1, GuiPanel.Orient.LEFT, true, ""); // keeps the columns even
+    makeTextField("PNL_STATS", "TXT_BUFFER",    "Buffer",    GuiControls.Orient.LEFT, false, "------", false);
+    makeTextField("PNL_STATS", "TXT_PROCESSED", "Processed", GuiControls.Orient.LEFT, true,  "------", false);
+    makeTextField("PNL_STATS", "TXT_PKTSLOST",  "Pkts Lost", GuiControls.Orient.LEFT, false, "------", false);
+    makeTextField("PNL_STATS", "TXT_METHODS",   "Methods",   GuiControls.Orient.LEFT, true,  "------", false);
+    makeTextField("PNL_STATS", "TXT_PKTSREAD",  "Pkts Read", GuiControls.Orient.LEFT, false, "------", false);
+    makeLabel    ("PNL_STATS", "LBL_1",         "",          GuiControls.Orient.LEFT, true); // dummy label keeps the columns even
 
     // the selections for graphics highlighting
-    JPanel panel2 = makePanel(GuiPanel.mainFrame, gbag, GuiPanel.Orient.LEFT, true,
-        "Graph Highlighting");
-    GridBagLayout gbag2 = (GridBagLayout) panel2.getLayout();
-    
-    JRadioButton timeSelBtn = makeRadiobutton(panel2, gbag2, Orient.LEFT, true,
-        "Highlight time elapsed", 0);
-    JRadioButton instrSelBtn = makeRadiobutton(panel2, gbag2, Orient.LEFT, true,
-        "Highlight instruction usage", 0);
-    JRadioButton iterSelBtn = makeRadiobutton(panel2, gbag2, Orient.LEFT, true,
-        "Highlight iterations", 0);
-    JRadioButton statSelBtn = makeRadiobutton(panel2, gbag2, Orient.LEFT, true,
-        "Highlight status", 0);
-    JRadioButton noneSelBtn = makeRadiobutton(panel2, gbag2, Orient.LEFT, true,
-        "Highlight off", 1);
+    makePanel(null, "PNL_HIGHLIGHT", "Graph Highlighting", GuiControls.Orient.LEFT, true);
+
+    makeRadiobutton("PNL_HIGHLIGHT", "RB_ELAPSED" , "Elapsed Time"   , GuiControls.Orient.LEFT, true, 0);
+    makeRadiobutton("PNL_HIGHLIGHT", "RB_INSTRUCT", "Instructions"   , GuiControls.Orient.LEFT, true, 0);
+    makeRadiobutton("PNL_HIGHLIGHT", "RB_ITER"    , "Iterations Used", GuiControls.Orient.LEFT, true, 0);
+    makeRadiobutton("PNL_HIGHLIGHT", "RB_STATUS"  , "Status"         , GuiControls.Orient.LEFT, true, 0);
+    makeRadiobutton("PNL_HIGHLIGHT", "RB_NONE"    , "Off"            , GuiControls.Orient.LEFT, true, 1);
     
     // add a tabbed panel to it
     GuiPanel.tabPanel = new JTabbedPane();
-    gbag.setConstraints(GuiPanel.tabPanel, setGbagConstraintsPanel());
+    GuiPanel.mainLayout.setConstraints(GuiPanel.tabPanel, GuiControls.setGbagConstraintsPanel());
     GuiPanel.mainFrame.add(GuiPanel.tabPanel);
     
     // add the debug message panel to the tabs
@@ -195,92 +163,67 @@ public class GuiPanel {
         }
       }
     });
-    timeSelBtn.addActionListener(new ActionListener() {
+
+    ((JRadioButton)GuiControls.getComponent("RB_ELAPSED")).addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(java.awt.event.ActionEvent evt) {
-        instrSelBtn.setSelected(false);
-        iterSelBtn.setSelected(false);
-        statSelBtn.setSelected(false);
-        noneSelBtn.setSelected(false);
-        graphMode = GraphHighlight.TIME;
-        if (isCallGraphTabSelected()) {
-          CallGraph.updateCallGraph(graphMode);
-        }
+        setHighlightMode(GraphHighlight.TIME);
       }
     });
-    instrSelBtn.addActionListener(new ActionListener() {
+
+    ((JRadioButton)GuiControls.getComponent("RB_INSTRUCT")).addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(java.awt.event.ActionEvent evt) {
-        timeSelBtn.setSelected(false);
-        iterSelBtn.setSelected(false);
-        statSelBtn.setSelected(false);
-        noneSelBtn.setSelected(false);
-        graphMode = GraphHighlight.INSTRUCTION;
-        if (isCallGraphTabSelected()) {
-          CallGraph.updateCallGraph(graphMode);
-        }
+        setHighlightMode(GraphHighlight.INSTRUCTION);
       }
     });
-    iterSelBtn.addActionListener(new ActionListener() {
+
+    ((JRadioButton)GuiControls.getComponent("RB_ITER")).addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(java.awt.event.ActionEvent evt) {
-        timeSelBtn.setSelected(false);
-        instrSelBtn.setSelected(false);
-        statSelBtn.setSelected(false);
-        noneSelBtn.setSelected(false);
-        graphMode = GraphHighlight.ITERATION;
-        if (isCallGraphTabSelected()) {
-          CallGraph.updateCallGraph(graphMode);
-        }
+        setHighlightMode(GraphHighlight.ITERATION);
       }
     });
-    statSelBtn.addActionListener(new ActionListener() {
+
+    ((JRadioButton)GuiControls.getComponent("RB_STATUS")).addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(java.awt.event.ActionEvent evt) {
-        timeSelBtn.setSelected(false);
-        instrSelBtn.setSelected(false);
-        iterSelBtn.setSelected(false);
-        noneSelBtn.setSelected(false);
-        graphMode = GraphHighlight.STATUS;
-        if (isCallGraphTabSelected()) {
-          CallGraph.updateCallGraph(graphMode);
-        }
+        setHighlightMode(GraphHighlight.STATUS);
       }
     });
-    noneSelBtn.addActionListener(new ActionListener() {
+
+    ((JRadioButton)GuiControls.getComponent("RB_NONE")).addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(java.awt.event.ActionEvent evt) {
-        timeSelBtn.setSelected(false);
-        instrSelBtn.setSelected(false);
-        iterSelBtn.setSelected(false);
-        statSelBtn.setSelected(false);
-        graphMode = GraphHighlight.NONE;
-        if (isCallGraphTabSelected()) {
-          CallGraph.updateCallGraph(graphMode);
-        }
+        setHighlightMode(GraphHighlight.NONE);
       }
     });
-    saveGrphButton.addActionListener(new ActionListener() {
+
+    ((JButton)GuiControls.getComponent("BTN_SAVEGRAPH")).addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(java.awt.event.ActionEvent evt) {
         saveGraphButtonActionPerformed(evt);
       }
     });
-    loadFileButton.addActionListener(new ActionListener() {
+
+    ((JButton)GuiControls.getComponent("BTN_LOADFILE")).addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(java.awt.event.ActionEvent evt) {
         loadDebugButtonActionPerformed(evt);
       }
     });
-    clearButton.addActionListener(new ActionListener() {
+
+    ((JButton)GuiControls.getComponent("BTN_CLEAR")).addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(java.awt.event.ActionEvent evt) {
         resetCapturedInput();
       }
     });
-    pauseButton.addActionListener(new ActionListener() {
+
+    ((JButton)GuiControls.getComponent("BTN_PAUSE")).addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(java.awt.event.ActionEvent evt) {
+        JButton pauseButton = (JButton)GuiControls.getComponent("BTN_SAVEGRAPH");
         if (pauseButton.getText().equals("Pause")) {
           if (pktTimer != null) {
             pktTimer.stop();
@@ -342,7 +285,7 @@ public class GuiPanel {
     Timer statsTimer = new Timer(100, new StatsUpdateListener());
     statsTimer.start();
   }
-  
+
   public static boolean isDebugMsgTabSelected() {
     if (!GuiPanel.bRunGraphics) {
       return true;
@@ -355,6 +298,60 @@ public class GuiPanel {
       return true;
     }
     return GuiPanel.tabPanel.getSelectedIndex() == 1;
+  }
+  
+  private static void setHighlightMode(GraphHighlight mode) {
+    JRadioButton timeSelBtn = (JRadioButton)GuiControls.getComponent("RB_ELAPSED");
+    JRadioButton instrSelBtn = (JRadioButton)GuiControls.getComponent("RB_INSTRUCT");
+    JRadioButton iterSelBtn = (JRadioButton)GuiControls.getComponent("RB_ITER");
+    JRadioButton statSelBtn = (JRadioButton)GuiControls.getComponent("RB_STATUS");
+    JRadioButton noneSelBtn = (JRadioButton)GuiControls.getComponent("RB_NONE");
+
+    // turn on the selected mode and turn off all others
+    switch(mode) {
+      case TIME:
+        timeSelBtn.setSelected(true);
+        instrSelBtn.setSelected(false);
+        iterSelBtn.setSelected(false);
+        statSelBtn.setSelected(false);
+        noneSelBtn.setSelected(false);
+        break;
+      case INSTRUCTION:
+        timeSelBtn.setSelected(false);
+        instrSelBtn.setSelected(true);
+        iterSelBtn.setSelected(false);
+        statSelBtn.setSelected(false);
+        noneSelBtn.setSelected(false);
+        break;
+      case ITERATION:
+        timeSelBtn.setSelected(false);
+        instrSelBtn.setSelected(false);
+        iterSelBtn.setSelected(true);
+        statSelBtn.setSelected(false);
+        noneSelBtn.setSelected(false);
+        break;
+      case STATUS:
+        timeSelBtn.setSelected(false);
+        instrSelBtn.setSelected(false);
+        iterSelBtn.setSelected(false);
+        statSelBtn.setSelected(true);
+        noneSelBtn.setSelected(false);
+        break;
+      case NONE:
+        timeSelBtn.setSelected(false);
+        instrSelBtn.setSelected(false);
+        iterSelBtn.setSelected(false);
+        statSelBtn.setSelected(false);
+        noneSelBtn.setSelected(true);
+      default:
+        break;
+    }
+
+    // set the mode flag & update graph
+    graphMode = mode;
+    if (isCallGraphTabSelected()) {
+      CallGraph.updateCallGraph(graphMode);
+    }
   }
   
   private class PacketListener implements ActionListener {
@@ -462,11 +459,11 @@ public class GuiPanel {
     @Override
     public void actionPerformed(ActionEvent e) {
       // update statistics
-      GuiPanel.pktsBuffered.setText("" + GuiPanel.udpThread.getBufferSize());
-      GuiPanel.pktsRead.setText("" + GuiPanel.udpThread.getPktsRead());
-      GuiPanel.pktsLost.setText("" + GuiPanel.udpThread.getPktsLost());
-      GuiPanel.linesProcessed.setText("" + GuiPanel.linesRead);
-      GuiPanel.methodsFound.setText("" + CallGraph.getMethodCount());
+      ((JTextField)GuiControls.getComponent("TXT_BUFFER")).setText("" + GuiPanel.udpThread.getBufferSize());
+      ((JTextField)GuiControls.getComponent("TXT_PKTSREAD")).setText("" + GuiPanel.udpThread.getPktsRead());
+      ((JTextField)GuiControls.getComponent("TXT_PKTSLOST")).setText("" + GuiPanel.udpThread.getPktsLost());
+      ((JTextField)GuiControls.getComponent("TXT_PROCESSED")).setText("" + GuiPanel.linesRead);
+      ((JTextField)GuiControls.getComponent("TXT_METHODS")).setText("" + CallGraph.getMethodCount());
     }
   }
 
@@ -557,338 +554,11 @@ public class GuiPanel {
     
     // clear the stats
     GuiPanel.linesRead = 0;
-    GuiPanel.pktsBuffered.setText("------");
-    GuiPanel.pktsRead.setText("------");
-    GuiPanel.pktsLost.setText("------");
-    GuiPanel.linesProcessed.setText("------");
-    GuiPanel.methodsFound.setText("------");
-  }
-  
-  /**
-   * this sets up the gridbag constraints for a single panel to fill the container
-   * 
-   * @return the constraints
-   */
-  private static GridBagConstraints setGbagConstraintsPanel() {
-    GridBagConstraints c = new GridBagConstraints();
-    c.insets = new Insets(GAPSIZE, GAPSIZE, GAPSIZE, GAPSIZE);
-
-    c.fill = GridBagConstraints.BOTH;
-    c.gridwidth  = GridBagConstraints.REMAINDER;
-    // since only 1 component, these both have to be non-zero for grid bag to work
-    c.weightx = 1.0;
-    c.weighty = 1.0;
-    return c;
-  }
-
-  /**
-   * This sets up the gridbag constraints for a simple element
-   * 
-   * @param pos - the orientation on the line
-   * @param end - true if this is the last (or only) entry on the line
-   * @return the constraints
-   */
-  private static GridBagConstraints setGbagConstraints(Orient pos, boolean end) {
-    GridBagConstraints c = new GridBagConstraints();
-    c.insets = new Insets(GAPSIZE, GAPSIZE, GAPSIZE, GAPSIZE);
-
-    switch(pos) {
-      case LEFT:
-        c.anchor = GridBagConstraints.BASELINE_LEADING;
-        break;
-      case RIGHT:
-        c.anchor = GridBagConstraints.BASELINE_TRAILING;
-        break;
-      case CENTER:
-        c.anchor = GridBagConstraints.CENTER;
-        break;
-      case NONE:
-        c.fill = GridBagConstraints.BOTH;
-        c.gridwidth  = GridBagConstraints.REMAINDER;
-        // since only 1 component, these both have to be non-zero for grid bag to work
-        c.weightx = 1.0;
-        c.weighty = 1.0;
-        return c;
-    }
-    c.fill = GridBagConstraints.NONE;
-    
-    c.gridheight = 1;
-    if (end) {
-      c.gridwidth = GridBagConstraints.REMAINDER; //end row
-    }
-    return c;
-  }
-
-  /**
-   * This sets up the gridbag constraints for an element on a line and places a label to the left
-   * 
-   * @param container - the container to place the element in
-   * @param gridbag   - the gridbag layout
-   * @param pos       - the orientation on the line
-   * @param end       - true if this is the last (or only) entry on the line
-   * @param fullline  - true if take up entire line with item
-   * @param name      - name of label to add
-   * @return the constraints
-   */
-  private static GridBagConstraints setGbagInsertLabel(Container container, GridBagLayout gridbag,
-                             Orient pos, boolean end, boolean fullline, String name) {
-    GridBagConstraints c = new GridBagConstraints();
-    c.insets = new Insets(GAPSIZE, GAPSIZE, GAPSIZE, GAPSIZE);
-    
-    switch(pos) {
-      case LEFT:
-        c.anchor = GridBagConstraints.BASELINE_LEADING;
-        break;
-      case RIGHT:
-        c.anchor = GridBagConstraints.BASELINE_TRAILING;
-        break;
-      case CENTER:
-        c.anchor = GridBagConstraints.CENTER;
-        break;
-      case NONE:
-        break;
-    }
-    c.fill = GridBagConstraints.NONE;
-    JLabel label = new JLabel(name);
-    gridbag.setConstraints(label, c);
-    container.add(label);
-    
-    if (fullline) {
-      c.weightx = 1.0;
-      c.fill = GridBagConstraints.HORIZONTAL;
-    } else {
-      c.weightx = 50.0;
-    }
-    if (end) {
-      c.gridwidth = GridBagConstraints.REMAINDER; //end row
-    }
-    return c;
-  }
-
-  /**
-   * This creates a JLabel and places it in the container.
-   * 
-   * @param container - the container to place the component in (e.g. JFrame or JPanel)
-   * @param gridbag - the layout info
-   * @param pos     - orientatition on the line: LEFT, RIGHT or CENTER
-   * @param end     - true if this is last widget in the line
-   * @param name    - the name to display as a label preceeding the widget
-   * @return the button widget
-   */
-  private static void makeLabel(Container container, GridBagLayout gridbag, Orient pos,
-                             boolean end, String name) {
-    JLabel label = new JLabel(name);
-    gridbag.setConstraints(label, setGbagConstraints(pos, end));
-    container.add(label);
-  }
-
-  /**
-   * This creates a JButton and places it in the container.
-   * 
-   * @param container - the container to place the component in (e.g. JFrame or JPanel)
-   * @param gridbag - the layout info
-   * @param pos     - orientatition on the line: LEFT, RIGHT or CENTER
-   * @param end     - true if this is last widget in the line
-   * @param name    - the name to display as a label preceeding the widget
-   * @return the button widget
-   */
-  private static JButton makeButton(Container container, GridBagLayout gridbag, Orient pos,
-                             boolean end, String name) {
-    JButton button = new JButton(name);
-    gridbag.setConstraints(button, setGbagConstraints(pos, end));
-    container.add(button);
-    return button;
-  }
-
-  /**
-   * This creates a JCheckBox and places it in the container.
-   * 
-   * @param container - the container to place the component in (e.g. JFrame or JPanel)
-   * @param gridbag - the layout info
-   * @param pos     - orientatition on the line: LEFT, RIGHT or CENTER
-   * @param end     - true if this is last widget in the line
-   * @param name    - the name to display as a label preceeding the widget
-   * @param value   - 0 to have checkbox initially unselected, any other value for selected
-   * @return the checkbox widget
-   */
-  private static JCheckBox makeCheckbox(Container container, GridBagLayout gridbag, Orient pos,
-                                 boolean end, String name, int value) {
-    JCheckBox cbox = new JCheckBox(name);
-    cbox.setSelected(value != 0);
-    gridbag.setConstraints(cbox, setGbagConstraints(pos, end));
-    container.add(cbox);
-    return cbox;
-  }
-
-  /**
-   * This creates a JTextField and places it in the container.
-   * These are single line String displays.
-   * 
-   * @param container - the container to place the component in (e.g. JFrame or JPanel)
-   * @param gridbag - the layout info
-   * @param pos     - orientatition on the line: LEFT, RIGHT or CENTER
-   * @param end     - true if this is last widget in the line
-   * @param name    - the name to display as a label preceeding the widget
-   * @param value   - 0 to have checkbox initially unselected, any other value for selected
-   * @param writable - true if field is writable by user, false if display only
-   * @return the checkbox widget
-   */
-  private static JTextField makeTextField(Container container, GridBagLayout gridbag, Orient pos,
-                                 boolean end, String name, String value, boolean writable) {
-    // insert a label before the component
-    GridBagConstraints c = setGbagInsertLabel(container, gridbag, pos, end, true, name);
-    
-    JTextField field = new JTextField();
-    field.setText(value);
-    field.setPreferredSize(new Dimension(80, 25));
-    field.setMinimumSize(new Dimension(80, 25));
-    field.setEditable(writable);
-    gridbag.setConstraints(field, c);
-    container.add(field);
-    return field;
-  }
-
-  /**
-   * This creates a JRadioButton and places it in the container.
-   * 
-   * @param container - the container to place the component in (e.g. JFrame or JPanel)
-   * @param gridbag - the layout info
-   * @param pos     - orientatition on the line: LEFT, RIGHT or CENTER
-   * @param end     - true if this is last widget in the line
-   * @param name    - the name to display as a label preceeding the widget
-   * @param value   - 0 to have checkbox initially unselected, any other value for selected
-   * @return the checkbox widget
-   */
-  private static JRadioButton makeRadiobutton(Container container, GridBagLayout gridbag, Orient pos,
-                                 boolean end, String name, int value) {
-    JRadioButton cbox = new JRadioButton(name);
-    cbox.setSelected(value != 0);
-    gridbag.setConstraints(cbox, setGbagConstraints(pos, end));
-    container.add(cbox);
-    return cbox;
-  }
-
-  /**
-   * This creates a JComboBox and places it in the container.
-   * 
-   * @param container - the container to place the component in (e.g. JFrame or JPanel)
-   * @param gridbag - the layout info
-   * @param pos     - orientatition on the line: LEFT, RIGHT or CENTER
-   * @param end     - true if this is last widget in the line
-   * @param name    - the name to display as a label preceeding the widget
-   * @return the combo widget
-   */
-  private static JComboBox makeCombobox(Container container, GridBagLayout gridbag, Orient pos,
-                                 boolean end, String name) {
-    // insert a label before the component
-    GridBagConstraints c = setGbagInsertLabel(container, gridbag, pos, end, true, name);
-    
-    JComboBox combobox = new JComboBox();
-    gridbag.setConstraints(combobox, c);
-    container.add(combobox);
-    return combobox;
-  }
-  
-  /**
-   * This creates an integer JSpinner and places it in the container.
-   * Step size (increment/decrement value) is always set to 1.
-   * 
-   * @param container - the container to place the component in (e.g. JFrame or JPanel)
-   * @param gridbag - the layout info
-   * @param pos     - orientatition on the line: LEFT, RIGHT or CENTER
-   * @param end     - true if this is last widget in the line
-   * @param name    - the name to display as a label preceeding the widget
-   * @param minval  - the min range limit for the spinner
-   * @param maxval  - the max range limit for the spinner
-   * @param step    - step size for the spinner
-   * @param curval  - the current value for the spinner
-   * @return the spinner widget
-   */
-  private static JSpinner makeSpinner(Container container, GridBagLayout gridbag, Orient pos,
-                          boolean end, String name, int minval, int maxval, int step, int curval) {
-    // insert a label before the component
-    GridBagConstraints c = setGbagInsertLabel(container, gridbag, pos, end, false, name);
-
-    JSpinner spinner = new JSpinner();
-    spinner.setModel(new SpinnerNumberModel(curval, minval, maxval, step));
-    gridbag.setConstraints(spinner, c);
-    container.add(spinner);
-    return spinner;
-  }
-  
-  /**
-   * This creates a JScrollPane containing a JList of Strings and places it in the container.
-   * A List of String entries is passed to it that can be manipulated (adding & removing entries
-   * that will be automatically reflected in the scroll pane.
-   * 
-   * @param container - the container to place the component in (e.g. JFrame or JPanel)
-   * @param gridbag - the layout info
-   * @param name    - the name to display as a label preceeding the widget
-   * @param list    - the list of entries to associate with the panel
-   * @return the JList corresponding to the list passed
-   */
-  private static JList makeScrollList(Container container, GridBagLayout gridbag, String name,
-                               DefaultListModel list) {
-    // create the scroll panel and apply constraints
-    JScrollPane spanel = new JScrollPane();
-    spanel.setBorder(BorderFactory.createTitledBorder(name));
-    gridbag.setConstraints(spanel, setGbagConstraintsPanel());
-    container.add(spanel);
-
-    // create a list component for the scroll panel and assign the list model to it
-    JList scrollList = new JList();
-    spanel.setViewportView(scrollList);
-    scrollList.setModel(list);
-    return scrollList;
-  }
-
-  /**
-   * This creates an empty JPanel and places it in the container.
-   * 
-   * @param container - the container to place the component in (e.g. JFrame or JPanel)
-   * @param gridbag - the layout info
-   * @param name    - the name to display as a label preceeding the widget
-   * @return the panel
-   */
-  private static JPanel makePanel(Container container, GridBagLayout gridbag, Orient pos,
-                  boolean end, String name) {
-    // create the panel and apply constraints
-    JPanel panel = new JPanel();
-    panel.setBorder(BorderFactory.createTitledBorder(name));
-
-    // create a layout for inside the panel
-    GridBagLayout gbag = new GridBagLayout();
-    panel.setFont(new Font("SansSerif", Font.PLAIN, 14));
-    panel.setLayout(gbag);
-
-    // place the panel in the specified container
-    if (container != null) {
-      gridbag.setConstraints(panel, setGbagConstraints(pos, end));
-      container.add(panel);
-    }
-    return panel;
-  }
-
-  /**
-   * This creates a JScrollPane containing a JTextPane for text and places it in the container.
-   * 
-   * @param container - the container to place the component in (e.g. JFrame or JPanel)
-   * @param gridbag - the layout info
-   * @param name    - the name to display as a label preceeding the widget
-   * @return the text panel contained in the scroll panel
-   */
-  private static JTextPane makeScrollText(Container container, GridBagLayout gridbag, String name) {
-    // create a text panel component
-    JTextPane panel = new JTextPane();
-
-    // create the scroll panel and apply constraints
-    JScrollPane spanel = new JScrollPane(panel);
-    spanel.setBorder(BorderFactory.createTitledBorder(name));
-    gridbag.setConstraints(spanel, setGbagConstraintsPanel());
-    if (container != null) {
-      container.add(spanel);
-    }
-    return panel;
+    ((JTextField)GuiControls.getComponent("TXT_BUFFER")).setText("------");
+    ((JTextField)GuiControls.getComponent("TXT_PKTSREAD")).setText("------");
+    ((JTextField)GuiControls.getComponent("TXT_PKTSLOST")).setText("------");
+    ((JTextField)GuiControls.getComponent("TXT_PROCESSED")).setText("------");
+    ((JTextField)GuiControls.getComponent("TXT_METHODS")).setText("------");
   }
 
 }
