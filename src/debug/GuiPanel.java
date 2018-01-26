@@ -18,6 +18,7 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.File;
 import java.io.IOException;
+import java.util.logging.Level;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JFileChooser;
@@ -32,6 +33,7 @@ import javax.swing.Timer;
 import javax.swing.WindowConstants;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
+import static org.apache.commons.io.FileUtils.writeStringToFile;
 
 /**
  *
@@ -223,7 +225,7 @@ public class GuiPanel {
     ((JButton)GuiControls.getComponent("BTN_PAUSE")).addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(java.awt.event.ActionEvent evt) {
-        JButton pauseButton = (JButton)GuiControls.getComponent("BTN_SAVEGRAPH");
+        JButton pauseButton = (JButton)GuiControls.getComponent("BTN_PAUSE");
         if (pauseButton.getText().equals("Pause")) {
           if (pktTimer != null) {
             pktTimer.stop();
@@ -523,14 +525,36 @@ public class GuiPanel {
   private static void saveGraphButtonActionPerformed(java.awt.event.ActionEvent evt) {
     GuiPanel.fileSelector.setApproveButtonText("Save");
     GuiPanel.fileSelector.setMultiSelectionEnabled(false);
-    String defaultFile = "callgraph.png";
-    GuiPanel.fileSelector.setSelectedFile(new File(defaultFile));
+    // TODO: prefix with MM_DD_
+    String defaultName = "callgraph";
+    GuiPanel.fileSelector.setSelectedFile(new File(defaultName + ".png"));
     int retVal = GuiPanel.fileSelector.showOpenDialog(GuiPanel.mainFrame);
     if (retVal == JFileChooser.APPROVE_OPTION) {
-      // output to the file
       File file = GuiPanel.fileSelector.getSelectedFile();
+      String basename = file.getAbsolutePath();
+      
+      // we have 2 associated files: the "png" image file and the "grph" graph information
+      int offset = basename.lastIndexOf('.');
+      if (offset > 0) {
+        basename = basename.substring(0, offset);
+      }
+      String pngFile = basename + ".png";
+      String grphFile = basename + ".grph";
+      
+      // remove any pre-existing file of that name
+      file = new File(pngFile);
       file.delete();
-      CallGraph.saveImageAsFile(file.getAbsolutePath());
+      File graph = new File(grphFile);
+      graph.delete();
+      
+      // output to the file
+      CallGraph.saveImageAsFile(pngFile);
+      String content = CallGraph.callGraphDataSave();
+      try {
+        writeStringToFile(graph, content);
+      } catch (IOException ex) {
+        System.err.println(ex.getMessage());
+      }
     }
   }
   

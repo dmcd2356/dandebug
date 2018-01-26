@@ -262,6 +262,145 @@ public class CallGraph {
   }
   
   /**
+   * finds the specified method entry in the list of saved methods
+   * @param method
+   * @return 
+   */
+  public static MethodInfo findMethodEntry(String method) {
+    for (int ix = 0; ix < CallGraph.graphMethList.size(); ix++) {
+      if (CallGraph.graphMethList.get(ix).getFullName().equals(method)) {
+        return CallGraph.graphMethList.get(ix);
+      }
+    }
+    return null;
+  }
+  
+  /**
+   * reads the specified method entries from the list and converts to string (for saving to file)
+   * 
+   * @return a string containing the method data
+   */  
+  public static String callGraphDataSave() {
+    String response = "";
+    for (MethodInfo mthNode : CallGraph.graphMethList) {
+      response += mthNode.getFullName() + ", ";
+      response += mthNode.getDuration() + ", ";
+      response += mthNode.getFirstLine() + ", ";
+      response += mthNode.getCount() + ", ";
+      response += mthNode.getInstructionCount() + ", ";
+      response += mthNode.getExecption() + ", ";
+      response += mthNode.getError() + NEWLINE;
+      if (mthNode.getParents().size() > 0) {
+        for (String parent : mthNode.getParents()) {
+          response += "    " + parent;
+        }
+        response += NEWLINE;
+      }
+    }
+    return response;
+  }
+  
+  /**
+   * reads the specified method entry from the list and converts to string (for saving to file)
+   * 
+   * @param content - string containing method information to setup
+   */  
+  public static void callGraphDataRead(String content) {
+    clear(); // remove all existing data before we start
+    
+    String method = "";
+    String eachline[] = content.split(NEWLINE); //("\\r\\n|\\n|\\r");
+    for (String line : eachline) {
+      String eachitem[] = line.split(",");
+      switch (eachitem.length) {
+        case 1:
+          // this handles the list of parents to a method
+          if (method.isEmpty()) { // if this happens, the file started with this entry, which is wrong
+            continue;
+          } String parent = eachitem[0].substring(1).trim();
+          callGraphAddParent(method, parent);
+          break;
+        case 7:
+          // this handles the method definition
+          method = eachitem[0].trim();
+          long duration = Long.parseLong(eachitem[1].trim());
+          int  linenum = Integer.parseInt(eachitem[2].trim());
+          int  count   = Integer.parseInt(eachitem[3].trim());
+          int  instr   = Integer.parseInt(eachitem[4].trim());
+          int  except  = Integer.parseInt(eachitem[5].trim());
+          int  error   = Integer.parseInt(eachitem[6].trim());
+          callGraphSetEntry(method, null, duration, linenum, count, instr, except, error);
+          break;
+        default:
+          // error
+          break;
+      }
+    }
+    
+    // now connect the methods to their parents
+    callGraphConnectParents();
+  }
+  
+  /**
+   * adds a method entry (when loading from file)
+   * 
+   * @param method       - the full name of the method to add
+   * @param parent       - the full name of the caller
+   * @param duration     - duration of method call in msec
+   * @param line         - the line number corresponding to the call event
+   * @param count        - number of times method was called
+   * @param instructions - number of instruction executed in method
+   * @param exception    - line # of last exception (-1 if none)
+   * @param error        - line # of last error     (-1 if none)
+   */  
+  public static void callGraphSetEntry(String method, String parent, long duration, int line,
+                                       int count, int instructions, int exception, int error) {
+    if (method == null || method.isEmpty()) {
+      return;
+    }
+
+    MethodInfo mthNode = new MethodInfo(method, parent, duration, line, count, instructions, exception, error);
+    CallGraph.graphMethList.add(mthNode);
+    CallGraph.lastMethod = mthNode;
+    CallGraph.callGraph.addVertex(mthNode, mthNode.getCGName());
+  }
+
+  /**
+   * adds a new caller to a method entry (when loading from file)
+   * 
+   * @param method - the full name of the method to add (must have been previous defined)
+   * @param parent - the full name of the caller
+   */  
+  public static void callGraphAddParent(String method, String parent) {
+    if (method == null || method.isEmpty() || parent == null || parent.isEmpty()) {
+      return;
+    }
+    MethodInfo mthNode = findMethodEntry(method);
+    if (mthNode != null) {
+      mthNode.addParent(parent);
+    }
+  }
+
+  /**
+   * this will traverse the methods saved in graphMethList and connect each method to its parent.
+   * This assumes that the vertexes have already been defined in callGraph prior to this call.
+   */
+  public static void callGraphConnectParents() {
+    // loop through all methods defined
+    for (MethodInfo mthNode : CallGraph.graphMethList) {
+      // for each parent entry for a method...
+      for (String parent : mthNode.getParents()) {
+        // find MethodInfo for the parent
+        MethodInfo parNode = findMethodEntry(parent);
+        if (parNode != null) {
+          // now add the connection from the method to the parent
+          CallGraph.callGraph.addEdge(parNode, mthNode, null);
+        }
+      }
+    }
+  }
+  
+  /**
    * adds a method to the call graph if it is not already there
    * 
    * @param tstamp - timestamp in msec from msg
@@ -272,6 +411,9 @@ public class CallGraph {
   public static void callGraphAddMethod(long tstamp, String method, String parent, int line) {
     if (method == null || method.isEmpty() || CallGraph.graphMethList == null) {
       return;
+    }
+    if (parent == null) {
+      parent = "";
     }
     
     // find method entry in list
@@ -288,12 +430,16 @@ public class CallGraph {
         if (CallGraph.maxCount < newCount) {
           CallGraph.maxCount = newCount;
         }
+        // if new caller found, add it to connection list
+        if (!parent.isEmpty()) {
+          mthNode.addParent(parent);
+        }
       }
     }
     // if not found, create new one and add it to list
     if (mthNode == null) {
       CallGraph.callStack.push(count); // save entry as last method called
-      mthNode = new MethodInfo(method, tstamp, line);
+      mthNode = new MethodInfo(method, parent, tstamp, line);
       CallGraph.graphMethList.add(mthNode);
       CallGraph.lastMethod = mthNode;
       newnode = true;
@@ -301,7 +447,7 @@ public class CallGraph {
 
     // find parent entry
     MethodInfo parNode = null;
-    if (parent != null && !parent.isEmpty()) {
+    if (!parent.isEmpty()) {
       for (int ix = 0; ix < CallGraph.graphMethList.size(); ix++) {
         if (CallGraph.graphMethList.get(ix).getFullName().equals(parent)) {
           parNode = CallGraph.graphMethList.get(ix);
