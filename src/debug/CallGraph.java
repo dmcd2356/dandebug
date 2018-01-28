@@ -5,6 +5,9 @@
  */
 package debug;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.reflect.TypeToken;
 import com.mxgraph.model.mxCell;
 import com.mxgraph.swing.handler.mxGraphHandler;
 import com.mxgraph.swing.mxGraphComponent;
@@ -13,8 +16,16 @@ import java.awt.Graphics;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.lang.reflect.Type;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Stack;
 import javax.imageio.ImageIO;
@@ -247,9 +258,6 @@ public class CallGraph {
               "Instr Count: " + selected.getInstructionCount() + NEWLINE) +
           "Iter:        " + selected.getCount() + NEWLINE +
           "1st called @ line:     " + selected.getFirstLine() + NEWLINE +
-          (selected.getCount() <= 1 ?
-              "" :
-              "last called @ line:" + selected.getLastLine()) +
           (selected.getExecption() <= 1 ?
               "" :
               "exception @ line:  " + selected.getExecption()) +
@@ -274,119 +282,67 @@ public class CallGraph {
     }
     return null;
   }
-  
+
   /**
-   * reads the specified method entries from the list and converts to string (for saving to file)
+   * reads the CallGraph.graphMethList entries and saves to file
    * 
-   * @return a string containing the method data
+   * @param file - name of file to save content to
    */  
-  public static String callGraphDataSave() {
-    String response = "";
-    for (MethodInfo mthNode : CallGraph.graphMethList) {
-      response += mthNode.getFullName() + ", ";
-      response += mthNode.getDuration() + ", ";
-      response += mthNode.getFirstLine() + ", ";
-      response += mthNode.getCount() + ", ";
-      response += mthNode.getInstructionCount() + ", ";
-      response += mthNode.getExecption() + ", ";
-      response += mthNode.getError() + NEWLINE;
-      if (mthNode.getParents().size() > 0) {
-        for (String parent : mthNode.getParents()) {
-          response += "    " + parent;
-        }
-        response += NEWLINE;
-      }
+  public static void callGraphDataSave(File file) {
+    // open the file to write to
+    BufferedWriter bw = null;
+    try {
+      bw = new BufferedWriter(new FileWriter(file));
+    } catch (IOException ex) {
+      System.err.println(ex.getMessage());
+      return;
     }
-    return response;
+
+    // convert to json and save to file
+		GsonBuilder builder = new GsonBuilder();
+    builder.setPrettyPrinting().serializeNulls();
+    //builder.excludeFieldsWithoutExposeAnnotation().create();
+		Gson gson = builder.create();
+    gson.toJson(CallGraph.graphMethList, bw);
+
+    try {
+      bw.close();
+    } catch (IOException ex) {
+      System.err.println(ex.getMessage());
+    }
   }
   
   /**
-   * reads the specified method entry from the list and converts to string (for saving to file)
+   * reads method info from specified file and saves in CallGraph.graphMethList
    * 
-   * @param content - string containing method information to setup
+   * @param file - name of file to load data from
    */  
-  public static void callGraphDataRead(String content) {
-    clear(); // remove all existing data before we start
+  public static void callGraphDataRead(File file) {
+    // open the file to read from
+    BufferedReader br;
+    try {
+      br = new BufferedReader(new FileReader(file));
+    } catch (FileNotFoundException ex) {
+      System.err.println(ex.getMessage());
+      return;
+    }
     
-    String method = "";
-    String eachline[] = content.split(NEWLINE); //("\\r\\n|\\n|\\r");
-    for (String line : eachline) {
-      String eachitem[] = line.split(",");
-      switch (eachitem.length) {
-        case 1:
-          // this handles the list of parents to a method
-          if (method.isEmpty()) { // if this happens, the file started with this entry, which is wrong
-            continue;
-          } String parent = eachitem[0].substring(1).trim();
-          callGraphAddParent(method, parent);
-          break;
-        case 7:
-          // this handles the method definition
-          method = eachitem[0].trim();
-          long duration = Long.parseLong(eachitem[1].trim());
-          int  linenum = Integer.parseInt(eachitem[2].trim());
-          int  count   = Integer.parseInt(eachitem[3].trim());
-          int  instr   = Integer.parseInt(eachitem[4].trim());
-          int  except  = Integer.parseInt(eachitem[5].trim());
-          int  error   = Integer.parseInt(eachitem[6].trim());
-          callGraphSetEntry(method, null, duration, linenum, count, instr, except, error);
-          break;
-        default:
-          // error
-          break;
-      }
+    // remove all existing data before we start
+    clear();
+
+    // load the method list info from json file
+		GsonBuilder builder = new GsonBuilder();
+		Gson gson = builder.create();
+    Type methodListType = new TypeToken<List<MethodInfo>>() {}.getType();
+    CallGraph.graphMethList = gson.fromJson(br, methodListType);
+    System.out.println("loaded: " + CallGraph.graphMethList.size() + " methods");
+
+    // add vertexes to graph
+    for(MethodInfo mthNode : CallGraph.graphMethList) {
+      CallGraph.callGraph.addVertex(mthNode, mthNode.getCGName());
     }
     
     // now connect the methods to their parents
-    callGraphConnectParents();
-  }
-  
-  /**
-   * adds a method entry (when loading from file)
-   * 
-   * @param method       - the full name of the method to add
-   * @param parent       - the full name of the caller
-   * @param duration     - duration of method call in msec
-   * @param line         - the line number corresponding to the call event
-   * @param count        - number of times method was called
-   * @param instructions - number of instruction executed in method
-   * @param exception    - line # of last exception (-1 if none)
-   * @param error        - line # of last error     (-1 if none)
-   */  
-  public static void callGraphSetEntry(String method, String parent, long duration, int line,
-                                       int count, int instructions, int exception, int error) {
-    if (method == null || method.isEmpty()) {
-      return;
-    }
-
-    MethodInfo mthNode = new MethodInfo(method, parent, duration, line, count, instructions, exception, error);
-    CallGraph.graphMethList.add(mthNode);
-    CallGraph.lastMethod = mthNode;
-    CallGraph.callGraph.addVertex(mthNode, mthNode.getCGName());
-  }
-
-  /**
-   * adds a new caller to a method entry (when loading from file)
-   * 
-   * @param method - the full name of the method to add (must have been previous defined)
-   * @param parent - the full name of the caller
-   */  
-  public static void callGraphAddParent(String method, String parent) {
-    if (method == null || method.isEmpty() || parent == null || parent.isEmpty()) {
-      return;
-    }
-    MethodInfo mthNode = findMethodEntry(method);
-    if (mthNode != null) {
-      mthNode.addParent(parent);
-    }
-  }
-
-  /**
-   * this will traverse the methods saved in graphMethList and connect each method to its parent.
-   * This assumes that the vertexes have already been defined in callGraph prior to this call.
-   */
-  public static void callGraphConnectParents() {
-    // loop through all methods defined
     for (MethodInfo mthNode : CallGraph.graphMethList) {
       // for each parent entry for a method...
       for (String parent : mthNode.getParents()) {
@@ -416,6 +372,17 @@ public class CallGraph {
       parent = "";
     }
     
+    // find parent entry in list
+    MethodInfo parNode = null;
+    if (!parent.isEmpty()) {
+      parNode = findMethodEntry(parent);
+//      if (parNode == null) {
+//        parNode = new MethodInfo(parent, null, 0, -1);
+//        CallGraph.graphMethList.add(parNode);
+//        CallGraph.callGraph.addVertex(parNode, parNode.getCGName());
+//      }
+    }
+
     // find method entry in list
     MethodInfo mthNode = null;
     boolean newnode = false;
@@ -444,29 +411,6 @@ public class CallGraph {
       CallGraph.lastMethod = mthNode;
       newnode = true;
     }
-
-    // find parent entry
-    MethodInfo parNode = null;
-    if (!parent.isEmpty()) {
-      for (int ix = 0; ix < CallGraph.graphMethList.size(); ix++) {
-        if (CallGraph.graphMethList.get(ix).getFullName().equals(parent)) {
-          parNode = CallGraph.graphMethList.get(ix);
-          break;
-        }
-      }
-//      if (parNode == null) {
-//        parNode = new MethodInfo(parent, 0, -1);
-//        CallGraph.graphMethList.add(parNode);
-//        //System.out.println("AddParent: " + parNode.getClassAndMethod());
-//        CallGraph.callGraph.addVertex(parNode, parNode.getCGName());
-//      }
-      //System.out.println("AddMethod: (" + mthNode.getCount() + ") " + mthNode.getClassAndMethod() +
-      //    ", parent = " + parNode.getClassAndMethod());
-    }
-    //else {
-    //  System.out.println("AddMethod: (" + mthNode.getCount() + ") " + mthNode.getClassAndMethod() +
-    //      ", (no parent)");
-    //}
 
     // add node (if not previously defined) and/or edge (if parent defined) to graph
     if (newnode) {

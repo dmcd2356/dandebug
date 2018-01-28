@@ -18,7 +18,6 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.File;
 import java.io.IOException;
-import java.util.logging.Level;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JFileChooser;
@@ -33,7 +32,6 @@ import javax.swing.Timer;
 import javax.swing.WindowConstants;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
-import static org.apache.commons.io.FileUtils.writeStringToFile;
 
 /**
  *
@@ -66,6 +64,7 @@ public class GuiPanel {
 /**
  * creates a debug panel to display the Logger messages in.
    * @param port  - the port to use for reading messages
+   * @param tcp     - true if use TCP, false to use UDP
    * @param bLogger - true if enable the debug message display
    * @param bGraph  - true if enable the graphics display
  */  
@@ -98,6 +97,7 @@ public class GuiPanel {
     GuiPanel.fileSelector = new JFileChooser();
 
     GuiPanel.graphMode = GraphHighlight.NONE;
+    String portInfo = (tcp ? "TCP" : "UDP") + " port " + port;
     
     // add the components
     
@@ -107,17 +107,20 @@ public class GuiPanel {
     makeButton("PNL_CONTROL", "BTN_PAUSE"    , "Pause"     , GuiControls.Orient.LEFT, true);
     makeButton("PNL_CONTROL", "BTN_CLEAR"    , "Clear"     , GuiControls.Orient.LEFT, true);
     makeButton("PNL_CONTROL", "BTN_SAVEGRAPH", "Save Graph", GuiControls.Orient.LEFT, true);
+    makeButton("PNL_CONTROL", "BTN_LOADGRAPH", "Load Graph", GuiControls.Orient.LEFT, true);
     makeButton("PNL_CONTROL", "BTN_LOADFILE" , "Load File" , GuiControls.Orient.LEFT, true);
 
     // the statistic information
     makePanel(null, "PNL_STATS", "Statistics", GuiControls.Orient.LEFT, false);
+    makeLabel("PNL_STATS", "LBL_PORT", portInfo, GuiControls.Orient.RIGHT, true);
+    makeLabel("PNL_STATS", "LBL_1"   ,       "", GuiControls.Orient.LEFT, true); // dummy seperator
 
     makeTextField("PNL_STATS", "TXT_BUFFER",    "Buffer",    GuiControls.Orient.LEFT, false, "------", false);
     makeTextField("PNL_STATS", "TXT_PROCESSED", "Processed", GuiControls.Orient.LEFT, true,  "------", false);
     makeTextField("PNL_STATS", "TXT_PKTSLOST",  "Pkts Lost", GuiControls.Orient.LEFT, false, "------", false);
     makeTextField("PNL_STATS", "TXT_METHODS",   "Methods",   GuiControls.Orient.LEFT, true,  "------", false);
     makeTextField("PNL_STATS", "TXT_PKTSREAD",  "Pkts Read", GuiControls.Orient.LEFT, false, "------", false);
-    makeLabel    ("PNL_STATS", "LBL_1",         "",          GuiControls.Orient.LEFT, true); // dummy label keeps the columns even
+    makeLabel    ("PNL_STATS", "LBL_2",         "",          GuiControls.Orient.LEFT, true); // dummy label keeps the columns even
 
     // the selections for graphics highlighting
     makePanel(null, "PNL_HIGHLIGHT", "Graph Highlighting", GuiControls.Orient.LEFT, true);
@@ -127,7 +130,7 @@ public class GuiPanel {
     makeRadiobutton("PNL_HIGHLIGHT", "RB_ITER"    , "Iterations Used", GuiControls.Orient.LEFT, true, 0);
     makeRadiobutton("PNL_HIGHLIGHT", "RB_STATUS"  , "Status"         , GuiControls.Orient.LEFT, true, 0);
     makeRadiobutton("PNL_HIGHLIGHT", "RB_NONE"    , "Off"            , GuiControls.Orient.LEFT, true, 1);
-    
+
     // add a tabbed panel to it
     GuiPanel.tabPanel = new JTabbedPane();
     GuiPanel.mainLayout.setConstraints(GuiPanel.tabPanel, GuiControls.setGbagConstraintsPanel());
@@ -205,6 +208,13 @@ public class GuiPanel {
       @Override
       public void actionPerformed(java.awt.event.ActionEvent evt) {
         saveGraphButtonActionPerformed(evt);
+      }
+    });
+
+    ((JButton)GuiControls.getComponent("BTN_LOADGRAPH")).addActionListener(new ActionListener() {
+      @Override
+      public void actionPerformed(java.awt.event.ActionEvent evt) {
+        loadGraphButtonActionPerformed(evt);
       }
     });
 
@@ -522,39 +532,69 @@ public class GuiPanel {
     }
   }
   
+  private static void loadGraphButtonActionPerformed(java.awt.event.ActionEvent evt) {
+    GuiPanel.fileSelector.setApproveButtonText("Load");
+    GuiPanel.fileSelector.setMultiSelectionEnabled(false);
+    String defaultFile = "callgraph.json";
+    GuiPanel.fileSelector.setSelectedFile(new File(defaultFile));
+    int retVal = GuiPanel.fileSelector.showOpenDialog(GuiPanel.mainFrame);
+    if (retVal == JFileChooser.APPROVE_OPTION) {
+      // stop the timers from updating the display
+      if (pktTimer != null) {
+        pktTimer.stop();
+      }
+      if (graphTimer != null) {
+        graphTimer.stop();
+      }
+
+      // shut down the port input
+      udpThread.exit();
+
+      // clear the current display
+      resetCapturedInput();
+      
+      // set the file to read from
+      File file = GuiPanel.fileSelector.getSelectedFile();
+      CallGraph.callGraphDataRead(file);
+
+      // now restart the update timers
+      if (pktTimer != null) {
+        pktTimer.start();
+      }
+      if (graphTimer != null) {
+        graphTimer.start();
+      }
+    }
+  }
+  
   private static void saveGraphButtonActionPerformed(java.awt.event.ActionEvent evt) {
     GuiPanel.fileSelector.setApproveButtonText("Save");
     GuiPanel.fileSelector.setMultiSelectionEnabled(false);
     // TODO: prefix with MM_DD_
     String defaultName = "callgraph";
-    GuiPanel.fileSelector.setSelectedFile(new File(defaultName + ".png"));
+    GuiPanel.fileSelector.setSelectedFile(new File(defaultName + ".json"));
     int retVal = GuiPanel.fileSelector.showOpenDialog(GuiPanel.mainFrame);
     if (retVal == JFileChooser.APPROVE_OPTION) {
       File file = GuiPanel.fileSelector.getSelectedFile();
       String basename = file.getAbsolutePath();
       
-      // we have 2 associated files: the "png" image file and the "grph" graph information
+      // we have 2 associated files: the "png" image file and the "json" graph information
       int offset = basename.lastIndexOf('.');
       if (offset > 0) {
         basename = basename.substring(0, offset);
       }
       String pngFile = basename + ".png";
-      String grphFile = basename + ".grph";
+      String grphFile = basename + ".json";
       
       // remove any pre-existing file of that name
       file = new File(pngFile);
       file.delete();
-      File graph = new File(grphFile);
-      graph.delete();
+      File graphFile = new File(grphFile);
+      graphFile.delete();
       
       // output to the file
       CallGraph.saveImageAsFile(pngFile);
-      String content = CallGraph.callGraphDataSave();
-      try {
-        writeStringToFile(graph, content);
-      } catch (IOException ex) {
-        System.err.println(ex.getMessage());
-      }
+      CallGraph.callGraphDataSave(graphFile);
     }
   }
   

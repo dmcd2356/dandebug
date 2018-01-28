@@ -5,6 +5,7 @@
  */
 package debug;
 
+import com.google.gson.annotations.Expose;
 import java.util.ArrayList;
 
 /**
@@ -12,24 +13,33 @@ import java.util.ArrayList;
  * @author dmcd2356
  */
 public class MethodInfo {
-  private String  fullName;       // full name of method (package, class, method + signature)
-  private String  className;      // class name (no package info or method name)
-  private String  methName;       // method name (no class info)
-  private ArrayList<String> parents; // list of caller methods
-  private int     count;          // number of times method called
-  private int     instrEntry;     // the number of instructions executed upon entry to the method
-  private int     instrExit;      // the number of instructions executed upon exit from the method
-  private int     instrCount;     // the number of instructions executed by the method
-  private int     lineFirst;      // line number corresponding to 1st call to method
-  private int     lineLast;       // line number corresponding to last call to method
-  private long    duration_ms;    // total duration in method
-  private long    start_ref;      // timestamp when method last called
-  private boolean exit;           // true if return has been logged, false if method just entered
-  private int     ln_except;      // line number of last exception that occurred in this method
-  private int     ln_error;       // line number of last error that occurred in this method
-  
   private static final String NEWLINE = System.getProperty("line.separator");
 
+  @Expose
+  private String  fullName;       // full name of method (package, class, method + signature)
+  @Expose
+  private String  className;      // class name (no package info or method name)
+  @Expose
+  private String  methName;       // method name (no class info)
+  @Expose
+  private int     lineFirst;      // line number corresponding to 1st call to method
+  @Expose
+  private int     callCount;      // number of times method called
+  @Expose
+  private int     instrCount;     // the number of instructions executed by the method
+  @Expose
+  private long    duration_ms;    // total duration in method
+  @Expose
+  private int     lineExcept;     // line number of last exception that occurred in this method
+  @Expose
+  private int     lineError;      // line number of last error that occurred in this method
+  @Expose
+  private ArrayList<String> parents; // list of caller methods
+  // these are intermediate values
+  private long    start_ref;      // timestamp when method last called
+  private int     instrEntry;     // the number of instructions executed upon entry to the method
+  private boolean exit;           // true if return has been logged, false if method just entered
+  
   public MethodInfo(String method, String parent, long tstamp, int line) {
     fullName = className = methName = "";
     if (method != null && !method.isEmpty()) {
@@ -57,16 +67,14 @@ public class MethodInfo {
     }
 
     lineFirst = line;
-    lineLast = line;
-    count = 1;
+    callCount = 1;
     start_ref = tstamp;
     duration_ms = -1;
     instrEntry = 0;
-    instrExit = 0;
     instrCount = -1;
     exit = false;
-    ln_except = -1;
-    ln_error = -1;
+    lineExcept = -1;
+    lineError = -1;
     //System.out.println("start time: " + start_ref + " (init) - " + fullName);
   }
 
@@ -97,24 +105,21 @@ public class MethodInfo {
     }
 
     lineFirst = line;
-    lineLast = line;        // don't care
-    count = cnt;
+    callCount = cnt;
     start_ref = 0;          // don't care
     duration_ms = duration;
     instrEntry = 0;         // don't care
-    instrExit = 0;          // don't care
     instrCount = instructions;
     exit = duration >= 0;
-    ln_except = exception;
-    ln_error = error;
+    lineExcept = exception;
+    lineError = error;
   }
   
   public void incCount(int line) {
-    ++count;
-    lineLast = line;
+    ++callCount;
     start_ref = System.currentTimeMillis();
     exit = false;
-    //System.out.println("start time: " + start_ref + ", count " + count + " - " +  fullName);
+    //System.out.println("start time: " + start_ref + ", callCount " + callCount + " - " +  fullName);
   }
 
   public void addParent(String parent) {
@@ -125,11 +130,11 @@ public class MethodInfo {
   }
   
   public void setExecption(int line) {
-    ln_except = line;
+    lineExcept = line;
   }
   
   public void setError(int line) {
-    ln_error = line;
+    lineError = line;
   }
   
   public void exit(long tstamp) {
@@ -147,11 +152,7 @@ public class MethodInfo {
   }
   
   public void setInstrExit(int count) {
-    if (instrCount < 0) {
-      instrCount = 0;
-    }
-    instrExit = count;
-    instrCount += (instrExit > instrEntry) ? instrExit - instrEntry : 0;
+    instrCount += (count > instrEntry) ? count - instrEntry : 0;
   }
 
   public ArrayList<String> getParents() {
@@ -183,23 +184,19 @@ public class MethodInfo {
   }
   
   public int getCount() {
-    return count;
+    return callCount;
   }
   
   public int getExecption() {
-    return ln_except;
+    return lineExcept;
   }
   
   public int getError() {
-    return ln_error;
+    return lineError;
   }
   
   public int getFirstLine() {
     return lineFirst;
-  }
-  
-  public int getLastLine() {
-    return lineLast;
   }
   
   public long getDuration() {
