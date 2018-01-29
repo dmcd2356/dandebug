@@ -18,6 +18,9 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.File;
 import java.io.IOException;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JFileChooser;
@@ -32,6 +35,7 @@ import javax.swing.Timer;
 import javax.swing.WindowConstants;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
+import javax.swing.filechooser.FileNameExtensionFilter;
 
 /**
  *
@@ -539,10 +543,12 @@ public class GuiPanel {
   }
   
   private static void loadGraphButtonActionPerformed(java.awt.event.ActionEvent evt) {
+    String defaultName = "callgraph";
+    FileNameExtensionFilter filter = new FileNameExtensionFilter("JSON Files", "json");
+    GuiPanel.fileSelector.setFileFilter(filter);
     GuiPanel.fileSelector.setApproveButtonText("Load");
     GuiPanel.fileSelector.setMultiSelectionEnabled(false);
-    String defaultFile = "callgraph.json";
-    GuiPanel.fileSelector.setSelectedFile(new File(defaultFile));
+    GuiPanel.fileSelector.setSelectedFile(new File(defaultName + ".json"));
     int retVal = GuiPanel.fileSelector.showOpenDialog(GuiPanel.mainFrame);
     if (retVal == JFileChooser.APPROVE_OPTION) {
       // stop the timers from updating the display
@@ -574,33 +580,35 @@ public class GuiPanel {
   }
   
   private static void saveGraphButtonActionPerformed(java.awt.event.ActionEvent evt) {
+    // TODO: prefix with MM_DD_
+    DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd-");
+    Date date = new Date();
+    String defaultName = dateFormat.format(date) + "callgraph";
+    FileNameExtensionFilter filter = new FileNameExtensionFilter("JSON Files", "json");
+    GuiPanel.fileSelector.setFileFilter(filter);
     GuiPanel.fileSelector.setApproveButtonText("Save");
     GuiPanel.fileSelector.setMultiSelectionEnabled(false);
-    // TODO: prefix with MM_DD_
-    String defaultName = "callgraph";
     GuiPanel.fileSelector.setSelectedFile(new File(defaultName + ".json"));
     int retVal = GuiPanel.fileSelector.showOpenDialog(GuiPanel.mainFrame);
     if (retVal == JFileChooser.APPROVE_OPTION) {
       File file = GuiPanel.fileSelector.getSelectedFile();
       String basename = file.getAbsolutePath();
       
-      // we have 2 associated files: the "png" image file and the "json" graph information
+      // get the base name without extension so we can create matching json and png files
       int offset = basename.lastIndexOf('.');
       if (offset > 0) {
         basename = basename.substring(0, offset);
       }
-      String pngFile = basename + ".png";
-      String grphFile = basename + ".json";
-      
-      // remove any pre-existing file of that name
-      file = new File(pngFile);
-      file.delete();
-      File graphFile = new File(grphFile);
+
+      // remove any pre-existing file and convert method list to json file
+      File graphFile = new File(basename + ".json");
       graphFile.delete();
-      
-      // output to the file
-      CallGraph.saveImageAsFile(pngFile);
       CallGraph.callGraphDataSave(graphFile);
+
+      // remove any pre-existing file and save image as png file
+      File pngFile = new File(basename + ".png");
+      pngFile.delete();
+      CallGraph.saveImageAsFile(pngFile);
     }
   }
   

@@ -91,7 +91,7 @@ public class CallGraph {
     return CallGraph.lastMethod;
   }
   
-  public static void saveImageAsFile(String name) {
+  public static void saveImageAsFile(File file) {
     BufferedImage bi = new BufferedImage(CallGraph.graphPanel.getSize().width,
       CallGraph.graphPanel.getSize().height, BufferedImage.TYPE_INT_ARGB); 
     Graphics graphics = bi.createGraphics();
@@ -99,7 +99,7 @@ public class CallGraph {
     CallGraph.graphPanel.paint(graphics);
     graphics.dispose();
     try {
-      ImageIO.write(bi,"png",new File(name));
+      ImageIO.write(bi,"png",file);
     } catch (Exception ex) {
       System.err.println(ex.getMessage());
     }
