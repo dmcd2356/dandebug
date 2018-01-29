@@ -7,6 +7,7 @@ package debug;
 
 import com.google.gson.annotations.Expose;
 import java.util.ArrayList;
+import java.util.HashMap;
 
 /**
  *
@@ -15,26 +16,17 @@ import java.util.ArrayList;
 public class MethodInfo {
   private static final String NEWLINE = System.getProperty("line.separator");
 
-  @Expose
   private String  fullName;       // full name of method (package, class, method + signature)
-  @Expose
   private String  className;      // class name (no package info or method name)
-  @Expose
   private String  methName;       // method name (no class info)
-  @Expose
   private int     lineFirst;      // line number corresponding to 1st call to method
-  @Expose
   private int     callCount;      // number of times method called
-  @Expose
   private int     instrCount;     // the number of instructions executed by the method
-  @Expose
   private long    duration_ms;    // total duration in method
-  @Expose
   private int     lineExcept;     // line number of last exception that occurred in this method
-  @Expose
   private int     lineError;      // line number of last error that occurred in this method
-  @Expose
   private ArrayList<String> parents; // list of caller methods
+  private HashMap<String, Integer> uninstrumented;  // the uninstrumented (library) calls
   // these are intermediate values
   private long    start_ref;      // timestamp when method last called
   private int     instrEntry;     // the number of instructions executed upon entry to the method
@@ -61,6 +53,7 @@ public class MethodInfo {
     }
 
     // init 1st caller of method
+    uninstrumented = new HashMap<>();
     parents = new ArrayList<>();
     if (parent != null && !parent.isEmpty()) {
       parents.add(parent);
@@ -78,43 +71,6 @@ public class MethodInfo {
     //System.out.println("start time: " + start_ref + " (init) - " + fullName);
   }
 
-  public MethodInfo(String method, String parent, long duration, int line, int cnt, int instructions, int exception, int error) {
-    fullName = className = methName = "";
-    if (method != null && !method.isEmpty()) {
-      // fullName should be untouched - it is used for comparisons
-      fullName = method;
-      String cleanName = method.replace("/", ".");
-      if (cleanName.contains("(")) {
-        cleanName = cleanName.substring(0, cleanName.lastIndexOf("("));
-      }
-      if (!cleanName.contains(".")) {
-        methName = cleanName;
-      } else {
-        methName = cleanName.substring(cleanName.lastIndexOf(".") + 1);
-        className = cleanName.substring(0, cleanName.lastIndexOf("."));
-        if (className.contains(".")) {
-          className = className.substring(className.lastIndexOf(".") + 1);
-        }
-      }
-    }
-
-    // init 1st caller of method
-    parents = new ArrayList<>();
-    if (parent != null && !parent.isEmpty()) {
-      parents.add(parent);
-    }
-
-    lineFirst = line;
-    callCount = cnt;
-    start_ref = 0;          // don't care
-    duration_ms = duration;
-    instrEntry = 0;         // don't care
-    instrCount = instructions;
-    exit = duration >= 0;
-    lineExcept = exception;
-    lineError = error;
-  }
-  
   public void incCount(int line) {
     ++callCount;
     start_ref = System.currentTimeMillis();
@@ -126,6 +82,15 @@ public class MethodInfo {
     // if caller entry not already in list, add it
     if (parents.indexOf(parent) < 0) {
       parents.add(parent);
+    }
+  }
+  
+  public void addUninstrumented(String method) {
+    // if caller entry not already in list add it, otherwise incr the value associated with it
+    if (uninstrumented.containsKey(method)) {
+      uninstrumented.replace(method, uninstrumented.get(method) + 1);
+    } else {
+      uninstrumented.put(method, 1);
     }
   }
   

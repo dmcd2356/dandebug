@@ -104,11 +104,12 @@ public class GuiPanel {
     // the button controls
     makePanel(null, "PNL_CONTROL", "Controls", GuiControls.Orient.LEFT, false);
 
-    makeButton("PNL_CONTROL", "BTN_PAUSE"    , "Pause"     , GuiControls.Orient.LEFT, true);
-    makeButton("PNL_CONTROL", "BTN_CLEAR"    , "Clear"     , GuiControls.Orient.LEFT, true);
+    makeButton("PNL_CONTROL", "BTN_PAUSE"    , "Pause"     , GuiControls.Orient.LEFT, false);
+    makeLabel ("PNL_CONTROL", "LBL_3",         "",           GuiControls.Orient.LEFT, true); // dummy label keeps the columns even
+    makeButton("PNL_CONTROL", "BTN_CLEAR"    , "Clear"     , GuiControls.Orient.LEFT, false);
     makeButton("PNL_CONTROL", "BTN_SAVEGRAPH", "Save Graph", GuiControls.Orient.LEFT, true);
+    makeButton("PNL_CONTROL", "BTN_LOADFILE" , "Load File" , GuiControls.Orient.LEFT, false);
     makeButton("PNL_CONTROL", "BTN_LOADGRAPH", "Load Graph", GuiControls.Orient.LEFT, true);
-    makeButton("PNL_CONTROL", "BTN_LOADFILE" , "Load File" , GuiControls.Orient.LEFT, true);
 
     // the statistic information
     makePanel(null, "PNL_STATS", "Statistics", GuiControls.Orient.LEFT, false);
@@ -447,6 +448,11 @@ public class GuiPanel {
                     }
                   } else if (words[0].equals("uninstrumented:")) {
                     // save uninstrumented call in list
+                    String method = words[1];
+                    if (method.endsWith(",")) {
+                      method = method.substring(0, method.length() - 1);
+                    }
+                    mthNode.addUninstrumented(method);
                   }
                 }
               }

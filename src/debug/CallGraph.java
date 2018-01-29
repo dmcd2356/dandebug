@@ -25,7 +25,6 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Stack;
 import javax.imageio.ImageIO;
@@ -48,8 +47,6 @@ public class CallGraph {
   private static Stack<Integer>   callStack = null;
   private static int numNodes;
   private static int numEdges;
-  private static long maxDuration;
-  private static int maxCount;
   private static GuiPanel.GraphHighlight curGraphMode;
   
   public static void initCallGraph(JPanel panel) {
@@ -59,8 +56,6 @@ public class CallGraph {
     CallGraph.graphComponent = null;
     CallGraph.numNodes = 0;
     CallGraph.numEdges = 0;
-    CallGraph.maxDuration = 0;
-    CallGraph.maxCount = 1;
     CallGraph.curGraphMode = GuiPanel.GraphHighlight.NONE;
 
     CallGraph.graphPanel = panel;
@@ -73,8 +68,6 @@ public class CallGraph {
     CallGraph.graphComponent = null;
     CallGraph.numNodes = 0;
     CallGraph.numEdges = 0;
-    CallGraph.maxDuration = 0;
-    CallGraph.maxCount = 1;
     CallGraph.curGraphMode = GuiPanel.GraphHighlight.NONE;
 
     CallGraph.graphPanel.removeAll();
@@ -151,10 +144,19 @@ public class CallGraph {
         CallGraph.graphPanel.add(graphComponent);
       }
 
-      // find max instruction count
+      // find the max limits
+      long maxDuration = 0;
+      int maxIteration = 0;
       int maxInstrCount = 0;
-      for (int ix = 0; ix < CallGraph.graphMethList.size(); ix++) {
-        MethodInfo mthNode = CallGraph.graphMethList.get(ix);
+      for(MethodInfo mthNode : CallGraph.graphMethList) {
+        long duration = mthNode.getDuration();
+        if (maxDuration < duration) {
+          maxDuration = duration;
+        }
+        int count = mthNode.getCount();
+        if (maxIteration < count) {
+          maxIteration = count;
+        }
         int newInsCount = mthNode.getInstructionCount();
         if (maxInstrCount < newInsCount) {
           maxInstrCount = newInsCount;
@@ -208,13 +210,13 @@ public class CallGraph {
             break;
           case ITERATION :
             int count = mthNode.getCount();
-            ratio = (double) count / (double) maxCount;
+            ratio = (double) count / (double) maxIteration;
             // this runs from 6666FF (blue) to CCCCFF (light blue)
             colorR = 204 - (int) (102.0 * ratio);
             colorG = 204 - (int) (102.0 * ratio);
             colorB = 255;
             color = String.format ("%06x", (colorR << 16) + (colorG << 8) + colorB);
-            if (ratio < 0.2 || (count < 10 && count < maxCount)) {
+            if (ratio < 0.2 || (count < 10 && count < maxIteration)) {
               color = "D2E9FF";
             }
             break;
@@ -348,7 +350,8 @@ public class CallGraph {
       for (String parent : mthNode.getParents()) {
         // find MethodInfo for the parent
         MethodInfo parNode = findMethodEntry(parent);
-        if (parNode != null) {
+        // only add connection if parent was found and there isn't already a connection
+        if (parNode != null && CallGraph.callGraph.getEdge(parNode, mthNode) == null) {
           // now add the connection from the method to the parent
           CallGraph.callGraph.addEdge(parNode, mthNode, null);
         }
@@ -393,10 +396,6 @@ public class CallGraph {
         mthNode = CallGraph.graphMethList.get(ix);
         CallGraph.lastMethod = mthNode;
         mthNode.incCount(line); // inc # of times method called
-        int newCount = mthNode.getCount();
-        if (CallGraph.maxCount < newCount) {
-          CallGraph.maxCount = newCount;
-        }
         // if new caller found, add it to connection list
         if (!parent.isEmpty()) {
           mthNode.addParent(parent);
@@ -440,10 +439,6 @@ public class CallGraph {
         MethodInfo mthNode = CallGraph.graphMethList.get(ix);
         mthNode.exit(tstamp);
         CallGraph.lastMethod = mthNode;
-        long newDuration = mthNode.getDuration();
-        if (CallGraph.maxDuration < newDuration) {
-          CallGraph.maxDuration = newDuration;
-        }
         //System.out.println("Return: (" + mthNode.getDuration() + ") " + mthNode.getClassAndMethod());
       }
     }
