@@ -32,7 +32,7 @@ public class MethodInfo {
   private int     instrEntry;     // the number of instructions executed upon entry to the method
   private boolean exit;           // true if return has been logged, false if method just entered
   
-  public MethodInfo(String method, String parent, long tstamp, int line) {
+  public MethodInfo(String method, String parent, long tstamp, int insCount, int line) {
     fullName = className = methName = "";
     if (method != null && !method.isEmpty()) {
       // fullName should be untouched - it is used for comparisons
@@ -63,7 +63,7 @@ public class MethodInfo {
     callCount = 1;
     start_ref = tstamp;
     duration_ms = -1;
-    instrEntry = 0;
+    instrEntry = insCount;
     instrCount = -1;
     exit = false;
     lineExcept = -1;
@@ -102,24 +102,26 @@ public class MethodInfo {
     lineError = line;
   }
   
-  public void exit(long tstamp) {
+  public void exit(long tstamp, int insCount) {
     if (duration_ms < 0) {
       duration_ms = 0;
     }
     long elapsedTime = (tstamp > start_ref) ? tstamp - start_ref : 0;
     duration_ms += elapsedTime;
+    
+    // if instruction count was defined, calc the time spent in the method & add it to current value
+    if (insCount >= 0) {
+      int delta = (insCount > instrEntry) ? insCount - instrEntry : 0;
+      if (instrCount < 0) {
+        instrCount = delta;
+      } else {
+        instrCount += delta;
+      }
+    }
     exit = true;
     //System.out.println("exit time: " + currentTime + ", elapsed " + duration_ms + " - " +  fullName);
   }
   
-  public void setInstrEntry(int count) {
-    instrEntry = count;
-  }
-  
-  public void setInstrExit(int count) {
-    instrCount += (count > instrEntry) ? count - instrEntry : 0;
-  }
-
   public ArrayList<String> getParents() {
     return parents;
   }

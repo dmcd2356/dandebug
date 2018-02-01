@@ -404,7 +404,7 @@ public class GuiPanel {
             tstamp = ((Integer.parseInt(timeMin) * 60) + Integer.parseInt(timeSec)) * 1000;
             tstamp += Integer.parseInt(timeMs);
           } catch (NumberFormatException ex) {
-            // invalid line - skip
+            // invalid syntax - skip
             return;
           }
 
@@ -414,14 +414,46 @@ public class GuiPanel {
           // extract call processing info and send to CallGraph
           switch (typestr) {
             case "CALL":
-              int offset = content.indexOf('|');
-              if (offset > 0) {
-                String method = content.substring(0, offset).trim();
-                String parent = content.substring(offset + 1).trim();
-                CallGraph.callGraphAddMethod(tstamp, method, parent, count);
-              } break;
+            {
+              String[] splited = content.split("[\\|\\s]+");
+              String method = "";
+              String parent = "";
+              String icount = "";
+              int insCount = -1;
+              switch (splited.length) {
+                case 0:
+                  return; // invalid syntax - ignore
+                case 1:
+                  method = splited[0].trim();
+                  break;
+                case 2:
+                  method = splited[0].trim();
+                  parent = splited[1].trim();
+                  break;
+                default:
+                case 3:
+                  icount = splited[0].trim();
+                  method = splited[1].trim();
+                  parent = splited[2].trim();
+                  // convert count value to integer value (if invalid, just leave count value at -1)
+                  try {
+                    insCount = Integer.parseUnsignedInt(icount);
+                  } catch (NumberFormatException ex) {
+                    return; // invalid syntax - ignore
+                  }
+                  break;
+              }
+              CallGraph.callGraphAddMethod(tstamp, insCount, method, parent, count);
+              }
+              break;
             case "RETURN":
-              CallGraph.callGraphReturn(tstamp, content);
+              int insCount;
+              try {
+                insCount = Integer.parseUnsignedInt(content);
+              } catch (NumberFormatException ex) {
+                insCount = -1;
+              }
+              CallGraph.callGraphReturn(tstamp, insCount);
               break;
             case "ENTRY":
               if (content.startsWith("catchException")) {
@@ -435,30 +467,13 @@ public class GuiPanel {
                 mthNode.setError(count);
               }
               break;
-            case "STATS":
+            case "UNINST":
               if (mthNode != null) {
-                String[] words = content.trim().split("[ ]+");
-                if (words.length >= 2) {
-                  if (words[0].equals("InsCount:")) {
-                    try {
-                      int insCount = Integer.parseUnsignedInt(words[1]);
-                      if (mthNode.isReturned()) {
-                        mthNode.setInstrExit(insCount);
-                      } else {
-                        mthNode.setInstrEntry(insCount);
-                      }
-                    } catch (NumberFormatException ex) {
-                      // ignore
-                    }
-                  } else if (words[0].equals("uninstrumented:")) {
-                    // save uninstrumented call in list
-                    String method = words[1];
-                    if (method.endsWith(",")) {
-                      method = method.substring(0, method.length() - 1);
-                    }
-                    mthNode.addUninstrumented(method);
-                  }
+                String method = content;
+                if (method.endsWith(",")) {
+                  method = method.substring(0, method.length() - 1);
                 }
+                mthNode.addUninstrumented(method);
               }
               break;
             default:

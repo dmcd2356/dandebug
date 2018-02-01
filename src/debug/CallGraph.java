@@ -362,12 +362,13 @@ public class CallGraph {
   /**
    * adds a method to the call graph if it is not already there
    * 
-   * @param tstamp - timestamp in msec from msg
-   * @param method - the full name of the method to add
-   * @param parent - the full name of the caller
-   * @param line   - the line number corresponding to the call event
+   * @param tstamp   - timestamp in msec from msg
+   * @param insCount - instruction count (-1 if not known)
+   * @param method   - the full name of the method to add
+   * @param parent   - the full name of the caller
+   * @param line     - the line number corresponding to the call event
    */  
-  public static void callGraphAddMethod(long tstamp, String method, String parent, int line) {
+  public static void callGraphAddMethod(long tstamp, int insCount, String method, String parent, int line) {
     if (method == null || method.isEmpty() || CallGraph.graphMethList == null) {
       return;
     }
@@ -405,7 +406,7 @@ public class CallGraph {
     // if not found, create new one and add it to list
     if (mthNode == null) {
       CallGraph.callStack.push(count); // save entry as last method called
-      mthNode = new MethodInfo(method, parent, tstamp, line);
+      mthNode = new MethodInfo(method, parent, tstamp, insCount, line);
       CallGraph.graphMethList.add(mthNode);
       CallGraph.lastMethod = mthNode;
       newnode = true;
@@ -423,11 +424,11 @@ public class CallGraph {
   /**
    * adds exit condition info to a method in the call graph
    * 
-   * @param tstamp - timestamp in msec from msg
-   * @param method - the full name of the method that is exiting
+   * @param tstamp   - timestamp in msec from msg
+   * @param insCount - instruction count (-1 if not known)
    */  
-  public static void callGraphReturn(long tstamp, String method) {
-    if (CallGraph.graphMethList == null || method == null) {
+  public static void callGraphReturn(long tstamp, int insCount) {
+    if (CallGraph.graphMethList == null) {
       //System.out.println("Return: " + method + " - NOT FOUND!");
       return;
     }
@@ -437,7 +438,7 @@ public class CallGraph {
       int ix = CallGraph.callStack.pop();
       if (ix >= 0 && ix < CallGraph.graphMethList.size()) {
         MethodInfo mthNode = CallGraph.graphMethList.get(ix);
-        mthNode.exit(tstamp);
+        mthNode.exit(tstamp, insCount);
         CallGraph.lastMethod = mthNode;
         //System.out.println("Return: (" + mthNode.getDuration() + ") " + mthNode.getClassAndMethod());
       }
