@@ -5,7 +5,6 @@
  */
 package debug;
 
-import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.GridBagConstraints;
@@ -25,9 +24,11 @@ import javax.swing.JPanel;
 import javax.swing.JRadioButton;
 import javax.swing.JScrollPane;
 import javax.swing.JSpinner;
+import javax.swing.JTabbedPane;
 import javax.swing.JTextField;
 import javax.swing.JTextPane;
 import javax.swing.SpinnerNumberModel;
+import javax.swing.WindowConstants;
 
 /**
  *
@@ -39,61 +40,194 @@ public class GuiControls {
   
   public enum Orient { NONE, LEFT, RIGHT, CENTER }
 
-  private static JFrame         mainFrame;
-  private static GridBagLayout  mainLayout;
-  private static HashMap<String, JComponent>  gComponents = new HashMap();
+  private JFrame         mainFrame;
+  private GridBagLayout  mainLayout;
+  private Dimension      framesize;
+  private final HashMap<String, JPanel>        gPanel = new HashMap();
+  private final HashMap<String, JScrollPane>   gScrollPanel = new HashMap();
+  private final HashMap<String, JTabbedPane>   gTabbedPanel = new HashMap();
+  private final HashMap<String, JTextPane>     gTextPane = new HashMap();
+  private final HashMap<String, JList>         gList = new HashMap();
+  private final HashMap<String, JLabel>        gLabel = new HashMap();
+  private final HashMap<String, JButton>       gButton = new HashMap();
+  private final HashMap<String, JCheckBox>     gCheckbox = new HashMap();
+  private final HashMap<String, JComboBox>     gCombobox = new HashMap();
+  private final HashMap<String, JTextField>    gTextField = new HashMap();
+  private final HashMap<String, JRadioButton>  gRadiobutton = new HashMap();
+  private final HashMap<String, JSpinner>      gSpinner = new HashMap();
 
-  /**
-   * this places the specified component in the container & saves the entry referenced by name.
-   * 
-   * @param name      - the name to refer to the component by
-   * @param component - the component to add
-   * @param container - the container to place the component in
-   */
-  private static void addComponent(String name, JComponent component, Container container) {
-      if (container != null && name != null && !name.isEmpty()) {
-        if (gComponents.containsKey(name)) {
-          System.err.println("'" + name + "' component already added to container!");
-          System.exit(1);
-        }
-
-        container.add(component);
-        gComponents.put(name, component);
-      }
+  public GuiControls() {
+    this.mainFrame = null;
+    this.mainLayout = null;
   }
   
-  private static void addComponent(String name, JComponent extcomp, JComponent intcomp, Container container) {
-      if (container != null && name != null && !name.isEmpty()) {
-        if (gComponents.containsKey(name)) {
-          System.err.println("'" + name + "' component already added to container!");
-          System.exit(1);
-        }
+  public GuiControls(String title, int height, int width) {
+    framesize = new Dimension(height, width);
+    this.mainFrame = new JFrame(title);
+    this.mainFrame.setSize(framesize);
+    this.mainFrame.setMinimumSize(framesize);
 
-        container.add(intcomp);
-        gComponents.put(name, extcomp);
-      }
+    // setup the layout for the frame
+    this.mainLayout = new GridBagLayout();
+    this.mainFrame.setFont(new Font("SansSerif", Font.PLAIN, 14));
+    this.mainFrame.setLayout(this.mainLayout);
   }
   
-  public static JComponent getComponent(String name) {
-    if (!gComponents.containsKey(name)) {
-      System.err.println("'" + name + "' component not found!");
-      System.exit(1);
+  public void newFrame(String title, int height, int width, boolean fixed) {
+    if (mainFrame != null) {
+      return;
     }
+    Dimension framesize = new Dimension(height, width);
+    this.mainFrame = new JFrame(title);
+    this.mainFrame.setSize(framesize);
+    this.mainFrame.setMinimumSize(framesize);
+    if (fixed) {
+      this.mainFrame.setMaximumSize(framesize);
+    }
+
+    // setup the layout for the frame
+    this.mainLayout = new GridBagLayout();
+    this.mainFrame.setFont(new Font("SansSerif", Font.PLAIN, 14));
+    this.mainFrame.setLayout(this.mainLayout);
+  }
+  
+  public void display() {
+    if (mainFrame != null) {
+      mainFrame.pack();
+      mainFrame.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+      mainFrame.setLocationRelativeTo(null);
+      mainFrame.setVisible(true);
+    }
+  }
+
+  public void update() {
+    if (mainFrame != null) {
+      mainFrame.repaint();
+    }
+  }
+  
+  public void repack() {
+    if (mainFrame != null) {
+      mainFrame.pack();
+      mainFrame.setSize(framesize);
+    }
+  }
+  
+  public void close() {
+    gPanel.clear();
+    gScrollPanel.clear();
+    gTabbedPanel.clear();
+    gTextPane.clear();
+    gList.clear();
+    gLabel.clear();
+    gButton.clear();
+    gCheckbox.clear();
+    gCombobox.clear();
+    gTextField.clear();
+    gRadiobutton.clear();
+    gSpinner.clear();
     
-    return gComponents.get(name);
+    if (mainFrame != null) {
+      mainFrame.dispose();
+      mainFrame = null;
+    }
   }
   
-  public static void setMainFrame(JFrame frame, GridBagLayout gbag) {
-    mainFrame  = frame;
-    mainLayout = gbag;
+  public JFrame getFrame() {
+    return mainFrame;
   }
-  
+
+  public boolean isValidFrame() {
+    return mainFrame != null;
+  }
+
+  public JPanel getPanel(String name) {
+    if (gPanel == null) {
+      return null;
+    }
+    return gPanel.get(name);
+  }
+
+  public JScrollPane getScrollPanel(String name) {
+    if (gScrollPanel == null) {
+      return null;
+    }
+    return gScrollPanel.get(name);
+  }
+
+  public JTabbedPane getTabbedPanel(String name) {
+    return gTabbedPanel.get(name);
+  }
+
+  public JTextPane getTextPane(String name) {
+    if (gTextPane == null) {
+      return null;
+    }
+    return gTextPane.get(name);
+  }
+
+  public JList getList(String name) {
+    if (gList == null) {
+      return null;
+    }
+    return gList.get(name);
+  }
+
+  public JLabel getLabel(String name) {
+    if (gLabel == null) {
+      return null;
+    }
+    return gLabel.get(name);
+  }
+
+  public JButton getButton(String name) {
+    if (gButton == null) {
+      return null;
+    }
+    return gButton.get(name);
+  }
+
+  public JCheckBox getCheckBox(String name) {
+    if (gCheckbox == null) {
+      return null;
+    }
+    return gCheckbox.get(name);
+  }
+
+  public JComboBox getComboBox(String name) {
+    if (gCombobox == null) {
+      return null;
+    }
+    return gCombobox.get(name);
+  }
+
+  public JTextField getTextField(String name) {
+    if (gTextField == null) {
+      return null;
+    }
+    return gTextField.get(name);
+  }
+
+  public JRadioButton getRadioButton(String name) {
+    if (gRadiobutton == null) {
+      return null;
+    }
+    return gRadiobutton.get(name);
+  }
+
+  public JSpinner getSpinner(String name) {
+    if (gSpinner == null) {
+      return null;
+    }
+    return gSpinner.get(name);
+  }
+
   /**
    * this sets up the gridbag constraints for a single panel to fill the container
    * 
    * @return the constraints
    */
-  public static GridBagConstraints setGbagConstraintsPanel() {
+  private GridBagConstraints setGbagConstraintsPanel() {
     GridBagConstraints c = new GridBagConstraints();
     c.insets = new Insets(GAPSIZE, GAPSIZE, GAPSIZE, GAPSIZE);
 
@@ -112,7 +246,7 @@ public class GuiControls {
    * @param end - true if this is the last (or only) entry on the line
    * @return the constraints
    */
-  public static GridBagConstraints setGbagConstraints(Orient pos, boolean end) {
+  private GridBagConstraints setGbagConstraints(Orient pos, boolean end) {
     GridBagConstraints c = new GridBagConstraints();
     c.insets = new Insets(GAPSIZE, GAPSIZE, GAPSIZE, GAPSIZE);
 
@@ -146,7 +280,7 @@ public class GuiControls {
   /**
    * This sets up the gridbag constraints for an element on a line and places a label to the left
    * 
-   * @param container - the container to place the element in
+   * @param panel     - the panel to place the element in (null if place in frame)
    * @param gridbag   - the gridbag layout
    * @param pos       - the orientation on the line
    * @param end       - true if this is the last (or only) entry on the line
@@ -154,8 +288,8 @@ public class GuiControls {
    * @param title     - name of label to add
    * @return the constraints
    */
-  public static GridBagConstraints setGbagInsertLabel(Container container, GridBagLayout gridbag,
-                             Orient pos, boolean end, boolean fullline, String title) {
+  private GridBagConstraints setGbagInsertLabel(JPanel panel, GridBagLayout gridbag,
+                             Orient pos, boolean end, boolean fullline, String name, String title) {
     GridBagConstraints c = new GridBagConstraints();
     c.insets = new Insets(GAPSIZE, GAPSIZE, GAPSIZE, GAPSIZE);
     
@@ -175,7 +309,11 @@ public class GuiControls {
     c.fill = GridBagConstraints.NONE;
     JLabel label = new JLabel(title);
     gridbag.setConstraints(label, c);
-    container.add(label);
+    if (panel != null) {
+      panel.add(label);
+    } else {
+      this.mainFrame.add(label);
+    }
     
     if (fullline) {
       c.weightx = 1.0;
@@ -186,66 +324,142 @@ public class GuiControls {
     if (end) {
       c.gridwidth = GridBagConstraints.REMAINDER; //end row
     }
+    if (name != null && !name.isEmpty()) {
+      this.gLabel.put(name, label);
+    }
+
     return c;
+  }
+
+  private JPanel getSelectedPanel(String panelname) {
+    // get container panel if specified
+    JPanel panel = null;
+    if (panelname != null && !panelname.isEmpty()) {
+      panel = gPanel.get(panelname);
+      if (panel == null) {
+        System.err.println("'" + panelname + "' panel not found!");
+        System.exit(1);
+      }
+    }
+    return panel;
+  }
+  
+  /**
+   * This adds the specified panel component to the main frame.
+   * 
+   * @param component - component to place the main frame
+   */
+  public void addToPanelFrame(JComponent component) {
+    if (mainFrame == null || mainLayout == null) {
+      return;
+    }
+    GridBagLayout gridbag = this.mainLayout;
+    gridbag.setConstraints(component, setGbagConstraintsPanel());
+    this.mainFrame.add(component);
   }
 
   /**
    * This creates a JLabel and places it in the container.
    * 
-   * @param owner   - the name of the jPanel container to place the component in (null if use main frame)
-   * @param name    - the name id of the component
+   * @param panelname - the name of the jPanel container to place the component in (null if use main frame)
+   * @param name    - the name id of the component (optional)
    * @param title   - the name to display as a label preceeding the widget
    * @param pos     - orientatition on the line: LEFT, RIGHT or CENTER
    * @param end     - true if this is last widget in the line
-   * @return the button widget
    */
-  public static void makeLabel(String owner, String name, String title, Orient pos, boolean end) {
-    // set default container to main frame
-    Container container   = mainFrame;
-    GridBagLayout gridbag = mainLayout;
-    if (owner != null && !owner.isEmpty()) {
-      container = getComponent(owner);
-      gridbag = (GridBagLayout) ((JPanel)container).getLayout();
+  public void makeLabel(String panelname, String name, String title, Orient pos, boolean end) {
+    if (mainFrame == null || mainLayout == null) {
+      return;
+    }
+    if (name != null && !name.isEmpty() && this.gLabel.containsKey(name)) {
+      System.err.println("'" + name + "' label already added to container!");
+      System.exit(1);
     }
 
+    // get container panel if specified & get corresponding layout
+    JPanel panel = getSelectedPanel(panelname);
+    GridBagLayout gridbag = this.mainLayout;
+    if (panel != null) {
+      gridbag = (GridBagLayout) panel.getLayout();
+    }
+
+    // create the component
     JLabel label = new JLabel(title);
     gridbag.setConstraints(label, setGbagConstraints(pos, end));
 
-    // place entry in container & add entry to components list
-    addComponent(name, label, container);
+    // place component in container & add entry to components list
+    if (panel != null) {
+      panel.add(label);
+    } else {
+      this.mainFrame.add(label);
+    }
+
+    if (name != null && !name.isEmpty()) {
+      this.gLabel.put(name, label);
+    }
   }
 
   /**
+   * This creates a JLabel and places it in the container.
+   * 
+   * @param panelname - the name of the jPanel container to place the component in (null if use main frame)
+   * @param pos     - orientatition on the line: LEFT, RIGHT or CENTER
+   * @param end     - true if this is last widget in the line
+   */
+  public void makePlaceholder(String panelname, Orient pos, boolean end) {
+    makeLabel(panelname, "", "    ", pos, end);
+  }
+  
+  /**
    * This creates a JButton and places it in the container.
    * 
-   * @param owner   - the name of the jPanel container to place the component in (null if use main frame)
+   * @param panelname - the name of the jPanel container to place the component in (null if use main frame)
    * @param name    - the name id of the component
    * @param title   - the name to display as a label preceeding the widget
    * @param pos     - orientatition on the line: LEFT, RIGHT or CENTER
    * @param end     - true if this is last widget in the line
    * @return the button widget
    */
-  public static JButton makeButton(String owner, String name, String title, Orient pos, boolean end) {
-    // set default container to main frame
-    Container container   = mainFrame;
-    GridBagLayout gridbag = mainLayout;
-    if (owner != null && !owner.isEmpty()) {
-      container = getComponent(owner);
-      gridbag = (GridBagLayout) ((JPanel)container).getLayout();
+  public JButton makeButton(String panelname, String name, String title, Orient pos, boolean end) {
+    if (mainFrame == null || mainLayout == null) {
+      return null;
+    }
+    if (this.gButton.containsKey(name)) {
+      System.err.println("'" + name + "' button already added to container!");
+      System.exit(1);
     }
 
+    // get the layout for the container
+    GridBagLayout gridbag = this.mainLayout;
+    JPanel panel = null;
+    if (panelname != null && !panelname.isEmpty()) {
+      panel = getPanel(panelname);
+      if (panel == null) {
+        System.err.println("'" + panelname + "' panel not found!");
+        System.exit(1);
+      }
+      gridbag = (GridBagLayout) panel.getLayout();
+    }
+
+    // create the component
     JButton button = new JButton(title);
     gridbag.setConstraints(button, setGbagConstraints(pos, end));
 
-    // place entry in container & add entry to components list
-    addComponent(name, button, container);
+    // place component in container & add entry to components list
+    if (panel != null) {
+      panel.add(button);
+    } else {
+      this.mainFrame.add(button);
+    }
+
+    this.gButton.put(name, button);
     return button;
   }
 
   /**
    * This creates a JCheckBox and places it in the container.
    * 
-   * @param owner   - the name of the jPanel container to place the component in (null if use main frame)
+   * @param panelname - the name of the jPanel container to place the component in (null if use main frame)
    * @param name    - the name id of the component
    * @param title   - the name to display as a label preceeding the widget
    * @param pos     - orientatition on the line: LEFT, RIGHT or CENTER
@@ -253,21 +467,41 @@ public class GuiControls {
    * @param value   - 0 to have checkbox initially unselected, any other value for selected
    * @return the checkbox widget
    */
-  public static JCheckBox makeCheckbox(String owner, String name, String title, Orient pos,
+  public JCheckBox makeCheckbox(String panelname, String name, String title, Orient pos,
               boolean end, int value) {
-    // set default container to main frame
-    Container container   = mainFrame;
-    GridBagLayout gridbag = mainLayout;
-    if (owner != null && !owner.isEmpty()) {
-      container = getComponent(owner);
-      gridbag = (GridBagLayout) ((JPanel)container).getLayout();
+    if (mainFrame == null || mainLayout == null) {
+      return null;
     }
+    if (this.gCheckbox.containsKey(name)) {
+      System.err.println("'" + name + "' checkbox already added to container!");
+      System.exit(1);
+    }
+
+    // get the layout for the container
+    GridBagLayout gridbag = this.mainLayout;
+    JPanel panel = null;
+    if (panelname != null && !panelname.isEmpty()) {
+      panel = getPanel(panelname);
+      if (panel == null) {
+        System.err.println("'" + panelname + "' panel not found!");
+        System.exit(1);
+      }
+      gridbag = (GridBagLayout) panel.getLayout();
+    }
+
+    // create the component
     JCheckBox cbox = new JCheckBox(title);
     cbox.setSelected(value != 0);
     gridbag.setConstraints(cbox, setGbagConstraints(pos, end));
 
-    // place entry in container & add entry to components list
-    addComponent(name, cbox, container);
+    // place component in container & add entry to components list
+    if (panel != null) {
+      panel.add(cbox);
+    } else {
+      this.mainFrame.add(cbox);
+    }
+
+    this.gCheckbox.put(name, cbox);
     return cbox;
   }
 
@@ -275,7 +509,7 @@ public class GuiControls {
    * This creates a JTextField and places it in the container.
    * These are single line String displays.
    * 
-   * @param owner   - the name of the jPanel container to place the component in (null if use main frame)
+   * @param panelname - the name of the jPanel container to place the component in (null if use main frame)
    * @param name    - the name id of the component
    * @param title   - the name to display as a label preceeding the widget
    * @param pos     - orientatition on the line: LEFT, RIGHT or CENTER
@@ -284,35 +518,54 @@ public class GuiControls {
    * @param writable - true if field is writable by user, false if display only
    * @return the checkbox widget
    */
-  public static JTextField makeTextField(String owner, String name, String title, Orient pos,
+  public JTextField makeTextField(String panelname, String name, String title, Orient pos,
                 boolean end, String value, boolean writable) {
-    // set default container to main frame
-    Container container   = mainFrame;
-    GridBagLayout gridbag = mainLayout;
-    if (owner != null && !owner.isEmpty()) {
-      container = getComponent(owner);
-      gridbag = (GridBagLayout) ((JPanel)container).getLayout();
+    if (mainFrame == null || mainLayout == null) {
+      return null;
+    }
+    if (this.gTextField.containsKey(name)) {
+      System.err.println("'" + name + "' textfield already added to container!");
+      System.exit(1);
+    }
+
+    // get the layout for the container
+    GridBagLayout gridbag = this.mainLayout;
+    JPanel panel = null;
+    if (panelname != null && !panelname.isEmpty()) {
+      panel = getPanel(panelname);
+      if (panel == null) {
+        System.err.println("'" + panelname + "' panel not found!");
+        System.exit(1);
+      }
+      gridbag = (GridBagLayout) panel.getLayout();
     }
 
     // insert a label before the component
-    GridBagConstraints c = setGbagInsertLabel(container, gridbag, pos, end, true, title);
+    GridBagConstraints c = setGbagInsertLabel(panel, gridbag, pos, end, true, name, title);
     
+    // create the component
     JTextField field = new JTextField();
     field.setText(value);
-    field.setPreferredSize(new Dimension(80, 25));
+    field.setPreferredSize(new Dimension(80, 25));  // TODO: add field to allow user to define length
     field.setMinimumSize(new Dimension(80, 25));
     field.setEditable(writable);
     gridbag.setConstraints(field, c);
 
-    // place entry in container & add entry to components list
-    addComponent(name, field, container);
+    // place component in container & add entry to components list
+    if (panel != null) {
+      panel.add(field);
+    } else {
+      this.mainFrame.add(field);
+    }
+
+    this.gTextField.put(name, field);
     return field;
   }
 
   /**
    * This creates a JRadioButton and places it in the container.
    * 
-   * @param owner   - the name of the jPanel container to place the component in (null if use main frame)
+   * @param panelname - the name of the jPanel container to place the component in (null if use main frame)
    * @param name    - the name id of the component
    * @param title   - the name to display as a label preceeding the widget
    * @param pos     - orientatition on the line: LEFT, RIGHT or CENTER
@@ -320,52 +573,90 @@ public class GuiControls {
    * @param value   - 0 to have checkbox initially unselected, any other value for selected
    * @return the checkbox widget
    */
-  public static JRadioButton makeRadiobutton(String owner, String name, String title, Orient pos,
+  public JRadioButton makeRadiobutton(String panelname, String name, String title, Orient pos,
               boolean end, int value) {
-    // set default container to main frame
-    Container container   = mainFrame;
-    GridBagLayout gridbag = mainLayout;
-    if (owner != null && !owner.isEmpty()) {
-      container = getComponent(owner);
-      gridbag = (GridBagLayout) ((JPanel)container).getLayout();
+    if (mainFrame == null || mainLayout == null) {
+      return null;
+    }
+    if (this.gRadiobutton.containsKey(name)) {
+      System.err.println("'" + name + "' radiobutton already added to container!");
+      System.exit(1);
     }
 
-    JRadioButton cbox = new JRadioButton(title);
-    cbox.setSelected(value != 0);
-    gridbag.setConstraints(cbox, setGbagConstraints(pos, end));
+    // get the layout for the container
+    GridBagLayout gridbag = this.mainLayout;
+    JPanel panel = null;
+    if (panelname != null && !panelname.isEmpty()) {
+      panel = getPanel(panelname);
+      if (panel == null) {
+        System.err.println("'" + panelname + "' panel not found!");
+        System.exit(1);
+      }
+      gridbag = (GridBagLayout) panel.getLayout();
+    }
 
-    // place entry in container & add entry to components list
-    addComponent(name, cbox, container);
-    return cbox;
+    // create the component
+    JRadioButton rbutton = new JRadioButton(title);
+    rbutton.setSelected(value != 0);
+    gridbag.setConstraints(rbutton, setGbagConstraints(pos, end));
+
+    // place component in container & add entry to components list
+    if (panel != null) {
+      panel.add(rbutton);
+    } else {
+      this.mainFrame.add(rbutton);
+    }
+
+    this.gRadiobutton.put(name, rbutton);
+    return rbutton;
   }
 
   /**
    * This creates a JComboBox and places it in the container.
    * 
-   * @param owner   - the name of the jPanel container to place the component in (null if use main frame)
+   * @param panelname - the name of the jPanel container to place the component in (null if use main frame)
    * @param name    - the name id of the component
    * @param title   - the name to display as a label preceeding the widget
    * @param pos     - orientatition on the line: LEFT, RIGHT or CENTER
    * @param end     - true if this is last widget in the line
    * @return the combo widget
    */
-  public static JComboBox makeCombobox(String owner, String name, String title, Orient pos, boolean end) {
-    // set default container to main frame
-    Container container   = mainFrame;
-    GridBagLayout gridbag = mainLayout;
-    if (owner != null && !owner.isEmpty()) {
-      container = getComponent(owner);
-      gridbag = (GridBagLayout) ((JPanel)container).getLayout();
+  public JComboBox makeCombobox(String panelname, String name, String title, Orient pos, boolean end) {
+    if (mainFrame == null || mainLayout == null) {
+      return null;
+    }
+    if (this.gCombobox.containsKey(name)) {
+      System.err.println("'" + name + "' combobox already added to container!");
+      System.exit(1);
+    }
+
+    // get the layout for the container
+    GridBagLayout gridbag = this.mainLayout;
+    JPanel panel = null;
+    if (panelname != null && !panelname.isEmpty()) {
+      panel = getPanel(panelname);
+      if (panel == null) {
+        System.err.println("'" + panelname + "' panel not found!");
+        System.exit(1);
+      }
+      gridbag = (GridBagLayout) panel.getLayout();
     }
 
     // insert a label before the component
-    GridBagConstraints c = setGbagInsertLabel(container, gridbag, pos, end, true, title);
+    GridBagConstraints c = setGbagInsertLabel(panel, gridbag, pos, end, true, name, title);
     
+    // create the component
     JComboBox combobox = new JComboBox();
     gridbag.setConstraints(combobox, c);
 
-    // place entry in container & add entry to components list
-    addComponent(name, combobox, container);
+    // place component in container & add entry to components list
+    if (panel != null) {
+      panel.add(combobox);
+    } else {
+      this.mainFrame.add(combobox);
+    }
+
+    this.gCombobox.put(name, combobox);
     return combobox;
   }
   
@@ -373,7 +664,7 @@ public class GuiControls {
    * This creates an integer JSpinner and places it in the container.
    * Step size (increment/decrement value) is always set to 1.
    * 
-   * @param owner   - the name of the jPanel container to place the component in (null if use main frame)
+   * @param panelname - the name of the jPanel container to place the component in (null if use main frame)
    * @param name    - the name id of the component
    * @param title   - the name to display as a label preceeding the widget
    * @param pos     - orientatition on the line: LEFT, RIGHT or CENTER
@@ -384,83 +675,181 @@ public class GuiControls {
    * @param curval  - the current value for the spinner
    * @return the spinner widget
    */
-  public static JSpinner makeSpinner(String owner, String name, String title, Orient pos, boolean end,
+  public JSpinner makeSpinner(String panelname, String name, String title, Orient pos, boolean end,
           int minval, int maxval, int step, int curval) {
-    // set default container to main frame
-    Container container   = mainFrame;
-    GridBagLayout gridbag = mainLayout;
-    if (owner != null && !owner.isEmpty()) {
-      container = getComponent(owner);
-      gridbag = (GridBagLayout) ((JPanel)container).getLayout();
+    if (mainFrame == null || mainLayout == null) {
+      return null;
+    }
+    if (this.gSpinner.containsKey(name)) {
+      System.err.println("'" + name + "' spinner already added to container!");
+      System.exit(1);
+    }
+
+    // get the layout for the container
+    GridBagLayout gridbag = this.mainLayout;
+    JPanel panel = null;
+    if (panelname != null && !panelname.isEmpty()) {
+      panel = getPanel(panelname);
+      if (panel == null) {
+        System.err.println("'" + panelname + "' panel not found!");
+        System.exit(1);
+      }
+      gridbag = (GridBagLayout) panel.getLayout();
     }
 
     // insert a label before the component
-    GridBagConstraints c = setGbagInsertLabel(container, gridbag, pos, end, false, title);
-
+    GridBagConstraints c = setGbagInsertLabel(panel, gridbag, pos, end, true, name, title);
+    
+    // create the component
     JSpinner spinner = new JSpinner();
     spinner.setModel(new SpinnerNumberModel(curval, minval, maxval, step));
     gridbag.setConstraints(spinner, c);
 
-    // place entry in container & add entry to components list
-    addComponent(name, spinner, container);
+    // place component in container & add entry to components list
+    if (panel != null) {
+      panel.add(spinner);
+    } else {
+      this.mainFrame.add(spinner);
+    }
+
+    this.gSpinner.put(name, spinner);
     return spinner;
   }
   
   /**
    * This creates an empty JPanel and places it in the container.
    * 
-   * @param owner   - the name of the jPanel container to place the component in (null if use main frame)
+   * @param panelname - the name of the jPanel container to place the component in (null if use main frame)
    * @param name    - the name id of the component
-   * @param title   - the name to display as a label preceeding the widget
+   * @param title   - the name to display as a label preceeding the widget (null if no border)
+   * @param pos     - orientatition on the line: LEFT, RIGHT or CENTER
+   * @param end     - true if this is last widget in the line
    * @return the panel
    */
-  public static JPanel makePanel(String owner, String name, String title, Orient pos, boolean end) {
-    // set default container to main frame
-    Container container   = mainFrame;
-    GridBagLayout gridbag = mainLayout;
-    if (owner != null && !owner.isEmpty()) {
-      container = getComponent(owner);
-      gridbag = (GridBagLayout) ((JPanel)container).getLayout();
+  public JPanel makePanel(String panelname, String name, String title, Orient pos, boolean end) {
+    if (mainFrame == null || mainLayout == null) {
+      return null;
+    }
+    if (this.gPanel.containsKey(name)) {
+      System.err.println("'" + name + "' panel already added to container!");
+      System.exit(1);
+    }
+
+    // get the layout for the container
+    GridBagLayout gridbag = this.mainLayout;
+    JPanel panel = null;
+    if (panelname != null && !panelname.isEmpty()) {
+      panel = getPanel(panelname);
+      if (panel == null) {
+        System.err.println("'" + panelname + "' container panel not found!");
+        System.exit(1);
+      }
+      gridbag = (GridBagLayout) panel.getLayout();
     }
 
     // create the panel and apply constraints
-    JPanel panel = new JPanel();
-    panel.setBorder(BorderFactory.createTitledBorder(title));
+    JPanel newpanel = new JPanel();
+    if (title != null) {
+      newpanel.setBorder(BorderFactory.createTitledBorder(title));
+    }
 
     // create a layout for inside the panel
     GridBagLayout gbag = new GridBagLayout();
-    panel.setFont(new Font("SansSerif", Font.PLAIN, 14));
-    panel.setLayout(gbag);
+    newpanel.setFont(new Font("SansSerif", Font.PLAIN, 14));
+    newpanel.setLayout(gbag);
 
-    // place the panel in the specified container
-    if (container != null) {
-      gridbag.setConstraints(panel, setGbagConstraints(pos, end));
-
-      // place entry in container & add entry to components list
-      addComponent(name, panel, container);
+    // place component in container & add entry to components list
+    if (panel != null) {
+      panel.add(newpanel);
+    } else {
+      this.mainFrame.add(newpanel);
     }
 
-    return panel;
+    gridbag.setConstraints(newpanel, setGbagConstraints(pos, end));
+    this.gPanel.put(name, newpanel);
+    return newpanel;
   }
 
+  /**
+   * This creates an empty JTabbedPanel and places it in the container.
+   * 
+   * @param panelname - the name of the JTabbedPanel container to place the component in (null if use main frame)
+   * @param name    - the name id of the component
+   * @param title   - the name to display as a label preceeding the widget (null if no border)
+   * @param pos     - orientatition on the line: LEFT, RIGHT or CENTER
+   * @param end     - true if this is last widget in the line
+   * @return the panel
+   */
+  public JTabbedPane makeTabbedPanel(String panelname, String name, String title, Orient pos, boolean end) {
+    if (mainFrame == null || mainLayout == null) {
+      return null;
+    }
+    if (this.gTabbedPanel.containsKey(name)) {
+      System.err.println("'" + name + "' panel already added to container!");
+      System.exit(1);
+    }
+
+    // get the layout for the container
+    GridBagLayout gridbag = this.mainLayout;
+    JPanel panel = null;
+    if (panelname != null && !panelname.isEmpty()) {
+      panel = getPanel(panelname);
+      if (panel == null) {
+        System.err.println("'" + panelname + "' container panel not found!");
+        System.exit(1);
+      }
+      gridbag = (GridBagLayout) panel.getLayout();
+    }
+
+    // create the panel and apply constraints
+    JTabbedPane newpanel = new JTabbedPane();
+    if (title != null) {
+      newpanel.setBorder(BorderFactory.createTitledBorder(title));
+    }
+
+    // place component in container & add entry to components list
+    if (panel != null) {
+      panel.add(newpanel);
+    } else {
+      this.mainFrame.add(newpanel);
+    }
+
+    gridbag.setConstraints(newpanel, setGbagConstraintsPanel());
+    this.gTabbedPanel.put(name, newpanel);
+    return newpanel;
+  }
+
+  
   /**
    * This creates a JScrollPane containing a JList of Strings and places it in the container.
    * A List of String entries is passed to it that can be manipulated (adding & removing entries
    * that will be automatically reflected in the scroll pane.
    * 
-   * @param owner   - the name of the jPanel container to place the component in (null if use main frame)
+   * @param panelname - the name of the jPanel container to place the component in (null if use main frame)
    * @param name    - the name id of the component
    * @param title   - the name to display as a label preceeding the widget
    * @param list    - the list of entries to associate with the panel
    * @return the JList corresponding to the list passed
    */
-  public static JList makeScrollList(String owner, String name, String title, DefaultListModel list) {
-    // set default container to main frame
-    Container container   = mainFrame;
-    GridBagLayout gridbag = mainLayout;
-    if (owner != null && !owner.isEmpty()) {
-      container = getComponent(owner);
-      gridbag = (GridBagLayout) ((JPanel)container).getLayout();
+  public JList makeScrollList(String panelname, String name, String title, DefaultListModel list) {
+    if (mainFrame == null || mainLayout == null) {
+      return null;
+    }
+    if (this.gScrollPanel.containsKey(name) || this.gList.containsKey(name)) {
+      System.err.println("'" + name + "' scrolling list panel already added to container!");
+      System.exit(1);
+    }
+
+    // get the layout for the container
+    GridBagLayout gridbag = this.mainLayout;
+    JPanel panel = null;
+    if (panelname != null && !panelname.isEmpty()) {
+      panel = getPanel(panelname);
+      if (panel == null) {
+        System.err.println("'" + panelname + "' container panel not found!");
+        System.exit(1);
+      }
+      gridbag = (GridBagLayout) panel.getLayout();
     }
 
     // create the scroll panel and apply constraints
@@ -473,41 +862,64 @@ public class GuiControls {
     spanel.setViewportView(scrollList);
     scrollList.setModel(list);
 
-    // place scroll panel in container & add its corresponding scroll list to components list
-    addComponent(name, scrollList, spanel, container);
+    // place component in container & add entry to components list
+    if (panel != null) {
+      panel.add(spanel);
+    } else {
+      this.mainFrame.add(spanel);
+    }
+
+    this.gScrollPanel.put(name, spanel);
+    this.gList.put(name, scrollList);
     return scrollList;
   }
 
   /**
    * This creates a JScrollPane containing a JTextPane for text and places it in the container.
    * 
-   * @param owner   - the name of the jPanel container to place the component in (null if use main frame)
+   * @param panelname - the name of the jPanel container to place the component in (null if use main frame)
    * @param name    - the name id of the component
    * @param title     - the name to display as a label preceeding the widget
    * @return the text panel contained in the scroll panel
    */
-  public static JTextPane makeScrollText(String owner, String name, String title) {
-    // set default container to main frame
-    Container container   = mainFrame;
-    GridBagLayout gridbag = mainLayout;
-    if (owner != null && !owner.isEmpty()) {
-      container = getComponent(owner);
-      gridbag = (GridBagLayout) ((JPanel)container).getLayout();
+  public JTextPane makeScrollText(String panelname, String name, String title) {
+    if (mainFrame == null || mainLayout == null) {
+      return null;
+    }
+    if (this.gScrollPanel.containsKey(name) || this.gTextPane.containsKey(name)) {
+      System.err.println("'" + name + "' scrolling textpanel already added to container!");
+      System.exit(1);
+    }
+
+    // get the layout for the container
+    GridBagLayout gridbag = this.mainLayout;
+    JPanel panel = null;
+    if (panelname != null && !panelname.isEmpty()) {
+      panel = getPanel(panelname);
+      if (panel == null) {
+        System.err.println("'" + panelname + "' container panel not found!");
+        System.exit(1);
+      }
+      gridbag = (GridBagLayout) panel.getLayout();
     }
 
     // create a text panel component
-    JTextPane panel = new JTextPane();
+    JTextPane tpanel = new JTextPane();
 
     // create the scroll panel and apply constraints
-    JScrollPane spanel = new JScrollPane(panel);
+    JScrollPane spanel = new JScrollPane(tpanel);
     spanel.setBorder(BorderFactory.createTitledBorder(title));
     gridbag.setConstraints(spanel, setGbagConstraintsPanel());
-    if (container != null) {
 
-      // place scroll pane entry in container & add its text pane to components list
-      addComponent(name, panel, spanel, container);
+    // place component in container & add entry to components list
+    if (panel != null) {
+      panel.add(spanel);
+    } else {
+      this.mainFrame.add(spanel);
     }
 
-    return panel;
+    this.gScrollPanel.put(name, spanel);
+    this.gTextPane.put(name, tpanel);
+    return tpanel;
   }
 }

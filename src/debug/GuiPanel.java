@@ -5,14 +5,7 @@
  */
 package debug;
 
-import static debug.GuiControls.makeButton;
-import static debug.GuiControls.makeLabel;
-import static debug.GuiControls.makePanel;
-import static debug.GuiControls.makeRadiobutton;
-import static debug.GuiControls.makeTextField;
 import java.awt.Dimension;
-import java.awt.Font;
-import java.awt.GridBagLayout;
 import java.awt.Toolkit;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -24,15 +17,12 @@ import java.util.Date;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JFileChooser;
-import javax.swing.JFrame;
 import javax.swing.JPanel;
 import javax.swing.JRadioButton;
 import javax.swing.JScrollPane;
 import javax.swing.JTabbedPane;
-import javax.swing.JTextField;
 import javax.swing.JTextPane;
 import javax.swing.Timer;
-import javax.swing.WindowConstants;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 import javax.swing.filechooser.FileNameExtensionFilter;
@@ -45,18 +35,17 @@ public class GuiPanel {
 
   public enum GraphHighlight { NONE, STATUS, TIME, INSTRUCTION, ITERATION }
 
-  private static JFrame         mainFrame;
-  private static GridBagLayout  mainLayout;
+  private final static GuiControls  mainFrame = new GuiControls();
   private static JTabbedPane    tabPanel;
   private static JTextPane      debugTextPane;
   private static JPanel         graphPanel;
   private static JFileChooser   fileSelector;
-  private static Dimension      framesize;
   private static ServerThread   udpThread;
   private static MyListener     listener;
   private static PacketListener pktListener;
   private static Timer          pktTimer;
   private static Timer          graphTimer;
+  private static Timer          statsTimer;
   private static int            linesRead;
   private static boolean        bRunLogger;
   private static boolean        bRunGraphics;
@@ -73,8 +62,9 @@ public class GuiPanel {
    * @param bGraph  - true if enable the graphics display
  */  
   public void createDebugPanel(int port, boolean tcp, boolean bLogger, boolean bGraph) {
-    if (GuiPanel.mainFrame != null) {
-      GuiPanel.mainFrame.dispose();
+    // if a panel already exists, close the old one
+    if (GuiPanel.mainFrame.isValidFrame()) {
+      GuiPanel.mainFrame.close();
     }
 
     GuiPanel.bFileLoading = false;
@@ -85,79 +75,70 @@ public class GuiPanel {
       System.exit(1);
     }
     
-    // create the frame
-    framesize = new Dimension(1200, 600);
-    GuiPanel.mainFrame = new JFrame("dandebug");
-    GuiPanel.mainFrame.setSize(framesize);
-    GuiPanel.mainFrame.setMinimumSize(framesize);
-
-    // setup the layout for the frame
-    GuiPanel.mainFrame.setFont(new Font("SansSerif", Font.PLAIN, 14));
-    GuiPanel.mainLayout = new GridBagLayout();
-    GuiPanel.mainFrame.setLayout(GuiPanel.mainLayout);
-    GuiControls.setMainFrame(mainFrame, mainLayout);
-
-    // we need a filechooser for the Save buttons
-    GuiPanel.fileSelector = new JFileChooser();
-
     GuiPanel.graphMode = GraphHighlight.NONE;
     String portInfo = (tcp ? "TCP" : "UDP") + " port " + port;
     
-    // add the components
+    // these just make the gui entries cleaner
+    String panel;
+    GuiControls.Orient LEFT = GuiControls.Orient.LEFT;
+    GuiControls.Orient CENTER = GuiControls.Orient.CENTER;
+    GuiControls.Orient RIGHT = GuiControls.Orient.RIGHT;
     
-    // the button controls
-    makePanel(null, "PNL_CONTROL", "Controls", GuiControls.Orient.LEFT, false);
+    // create the frame
+    mainFrame.newFrame("dandebug", 1200, 600, false);
 
-    makeButton("PNL_CONTROL", "BTN_PAUSE"    , "Pause"     , GuiControls.Orient.LEFT, false);
-    makeLabel ("PNL_CONTROL", "LBL_3",         "",           GuiControls.Orient.LEFT, true); // dummy label keeps the columns even
-    makeButton("PNL_CONTROL", "BTN_CLEAR"    , "Clear"     , GuiControls.Orient.LEFT, false);
-    makeButton("PNL_CONTROL", "BTN_SAVEGRAPH", "Save Graph", GuiControls.Orient.LEFT, true);
-    makeButton("PNL_CONTROL", "BTN_LOADFILE" , "Load File" , GuiControls.Orient.LEFT, false);
-    makeButton("PNL_CONTROL", "BTN_LOADGRAPH", "Load Graph", GuiControls.Orient.LEFT, true);
+    // create the entries in the main frame
+    mainFrame.makePanel(null, "PNL_CONTROL", "Controls", LEFT, false);
+    mainFrame.makePanel(null, "PNL_STATS", "Statistics", LEFT, false);
+    mainFrame.makePanel(null, "PNL_HIGHLIGHT", "Graph Highlighting", LEFT, true);
+    tabPanel = mainFrame.makeTabbedPanel(null, "PNL_TABBED", "", LEFT, true);
 
-    // the statistic information
-    makePanel(null, "PNL_STATS", "Statistics", GuiControls.Orient.LEFT, false);
-    makeLabel("PNL_STATS", "LBL_PORT", portInfo, GuiControls.Orient.RIGHT, true);
-    makeLabel("PNL_STATS", "LBL_1"   ,       "", GuiControls.Orient.LEFT, true); // dummy seperator
+    // now add controls to the sub-panels
+    panel = "PNL_CONTROL";
+    mainFrame.makeButton(panel, "BTN_PAUSE"    , "Pause"     , LEFT, false);
+    mainFrame.makeLabel (panel, "LBL_3",         "",           LEFT, true); // dummy to keep even
+    mainFrame.makeButton(panel, "BTN_CLEAR"    , "Clear"     , LEFT, false);
+    mainFrame.makeButton(panel, "BTN_SAVEGRAPH", "Save Graph", LEFT, true);
+    mainFrame.makeButton(panel, "BTN_LOADFILE" , "Load File" , LEFT, false);
+    mainFrame.makeButton(panel, "BTN_LOADGRAPH", "Load Graph", LEFT, true);
 
-    makeTextField("PNL_STATS", "TXT_BUFFER",    "Buffer",    GuiControls.Orient.LEFT, false, "------", false);
-    makeTextField("PNL_STATS", "TXT_PROCESSED", "Processed", GuiControls.Orient.LEFT, true,  "------", false);
-    makeTextField("PNL_STATS", "TXT_PKTSLOST",  "Pkts Lost", GuiControls.Orient.LEFT, false, "------", false);
-    makeTextField("PNL_STATS", "TXT_METHODS",   "Methods",   GuiControls.Orient.LEFT, true,  "------", false);
-    makeTextField("PNL_STATS", "TXT_PKTSREAD",  "Pkts Read", GuiControls.Orient.LEFT, false, "------", false);
-    makeLabel    ("PNL_STATS", "LBL_2",         "",          GuiControls.Orient.LEFT, true); // dummy label keeps the columns even
+    panel = "PNL_STATS";
+    mainFrame.makeLabel    (panel, "LBL_PORT", portInfo, RIGHT, true);
+    mainFrame.makeLabel    (panel, "LBL_1"   ,       "", LEFT, true); // dummy seperator
+    mainFrame.makeTextField(panel, "TXT_BUFFER",    "Buffer",    LEFT, false, "------", false);
+    mainFrame.makeTextField(panel, "TXT_PROCESSED", "Processed", LEFT, true,  "------", false);
+    mainFrame.makeTextField(panel, "TXT_PKTSLOST",  "Pkts Lost", LEFT, false, "------", false);
+    mainFrame.makeTextField(panel, "TXT_METHODS",   "Methods",   LEFT, true,  "------", false);
+    mainFrame.makeTextField(panel, "TXT_PKTSREAD",  "Pkts Read", LEFT, false, "------", false);
+    mainFrame.makeLabel    (panel, "LBL_2",         "",          LEFT, true); // dummy to keep even
 
-    // the selections for graphics highlighting
-    makePanel(null, "PNL_HIGHLIGHT", "Graph Highlighting", GuiControls.Orient.LEFT, true);
+    panel = "PNL_HIGHLIGHT";
+    mainFrame.makeRadiobutton(panel, "RB_ELAPSED" , "Elapsed Time"   , LEFT, true, 0);
+    mainFrame.makeRadiobutton(panel, "RB_INSTRUCT", "Instructions"   , LEFT, true, 0);
+    mainFrame.makeRadiobutton(panel, "RB_ITER"    , "Iterations Used", LEFT, true, 0);
+    mainFrame.makeRadiobutton(panel, "RB_STATUS"  , "Status"         , LEFT, true, 0);
+    mainFrame.makeRadiobutton(panel, "RB_NONE"    , "Off"            , LEFT, true, 1);
 
-    makeRadiobutton("PNL_HIGHLIGHT", "RB_ELAPSED" , "Elapsed Time"   , GuiControls.Orient.LEFT, true, 0);
-    makeRadiobutton("PNL_HIGHLIGHT", "RB_INSTRUCT", "Instructions"   , GuiControls.Orient.LEFT, true, 0);
-    makeRadiobutton("PNL_HIGHLIGHT", "RB_ITER"    , "Iterations Used", GuiControls.Orient.LEFT, true, 0);
-    makeRadiobutton("PNL_HIGHLIGHT", "RB_STATUS"  , "Status"         , GuiControls.Orient.LEFT, true, 0);
-    makeRadiobutton("PNL_HIGHLIGHT", "RB_NONE"    , "Off"            , GuiControls.Orient.LEFT, true, 1);
-
-    // add a tabbed panel to it
-    GuiPanel.tabPanel = new JTabbedPane();
-    GuiPanel.mainLayout.setConstraints(GuiPanel.tabPanel, GuiControls.setGbagConstraintsPanel());
-    GuiPanel.mainFrame.add(GuiPanel.tabPanel);
-    
     // add the debug message panel to the tabs
     if (GuiPanel.bRunLogger) {
       GuiPanel.debugTextPane = new JTextPane();
       JScrollPane fileScrollPanel = new JScrollPane(GuiPanel.debugTextPane);
       fileScrollPanel.setBorder(BorderFactory.createTitledBorder(""));
-      GuiPanel.tabPanel.addTab("Debug Messages", fileScrollPanel);
+      tabPanel.addTab("Debug Messages", fileScrollPanel);
     }
 
     // add the CallGraph panel to the tabs
     if (GuiPanel.bRunGraphics) {
       GuiPanel.graphPanel = new JPanel();
       JScrollPane graphScrollPanel = new JScrollPane(GuiPanel.graphPanel);
-      GuiPanel.tabPanel.addTab("Call Graph", graphScrollPanel);
+      tabPanel.addTab("Call Graph", graphScrollPanel);
     }
 
+    // we need a filechooser for the Save buttons
+    GuiPanel.fileSelector = new JFileChooser();
+
     // setup the control actions
-    GuiPanel.mainFrame.addWindowListener(new java.awt.event.WindowAdapter() {
+    GuiPanel.mainFrame.getFrame().addWindowListener(new java.awt.event.WindowAdapter() {
       @Override
       public void windowClosing(java.awt.event.WindowEvent evt) {
         formWindowClosing(evt);
@@ -168,79 +149,79 @@ public class GuiPanel {
       public void stateChanged(ChangeEvent e) {
         if (GuiPanel.tabPanel.getSelectedIndex() == 1) { // 1 = the graph tab selection
           if (CallGraph.updateCallGraph(graphMode)) {
-            repackFrame();
+            GuiPanel.mainFrame.repack();
           }
         }
       }
     });
 
-    ((JRadioButton)GuiControls.getComponent("RB_ELAPSED")).addActionListener(new ActionListener() {
+    (GuiPanel.mainFrame.getRadioButton("RB_ELAPSED")).addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(java.awt.event.ActionEvent evt) {
         setHighlightMode(GraphHighlight.TIME);
       }
     });
 
-    ((JRadioButton)GuiControls.getComponent("RB_INSTRUCT")).addActionListener(new ActionListener() {
+    (GuiPanel.mainFrame.getRadioButton("RB_INSTRUCT")).addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(java.awt.event.ActionEvent evt) {
         setHighlightMode(GraphHighlight.INSTRUCTION);
       }
     });
 
-    ((JRadioButton)GuiControls.getComponent("RB_ITER")).addActionListener(new ActionListener() {
+    (GuiPanel.mainFrame.getRadioButton("RB_ITER")).addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(java.awt.event.ActionEvent evt) {
         setHighlightMode(GraphHighlight.ITERATION);
       }
     });
 
-    ((JRadioButton)GuiControls.getComponent("RB_STATUS")).addActionListener(new ActionListener() {
+    (GuiPanel.mainFrame.getRadioButton("RB_STATUS")).addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(java.awt.event.ActionEvent evt) {
         setHighlightMode(GraphHighlight.STATUS);
       }
     });
 
-    ((JRadioButton)GuiControls.getComponent("RB_NONE")).addActionListener(new ActionListener() {
+    (GuiPanel.mainFrame.getRadioButton("RB_NONE")).addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(java.awt.event.ActionEvent evt) {
         setHighlightMode(GraphHighlight.NONE);
       }
     });
 
-    ((JButton)GuiControls.getComponent("BTN_SAVEGRAPH")).addActionListener(new ActionListener() {
+    (GuiPanel.mainFrame.getButton("BTN_SAVEGRAPH")).addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(java.awt.event.ActionEvent evt) {
         saveGraphButtonActionPerformed(evt);
       }
     });
 
-    ((JButton)GuiControls.getComponent("BTN_LOADGRAPH")).addActionListener(new ActionListener() {
+    (GuiPanel.mainFrame.getButton("BTN_LOADGRAPH")).addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(java.awt.event.ActionEvent evt) {
         loadGraphButtonActionPerformed(evt);
       }
     });
 
-    ((JButton)GuiControls.getComponent("BTN_LOADFILE")).addActionListener(new ActionListener() {
+    (GuiPanel.mainFrame.getButton("BTN_LOADFILE")).addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(java.awt.event.ActionEvent evt) {
         loadDebugButtonActionPerformed(evt);
       }
     });
 
-    ((JButton)GuiControls.getComponent("BTN_CLEAR")).addActionListener(new ActionListener() {
+    (GuiPanel.mainFrame.getButton("BTN_CLEAR")).addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(java.awt.event.ActionEvent evt) {
         resetCapturedInput();
       }
     });
 
-    ((JButton)GuiControls.getComponent("BTN_PAUSE")).addActionListener(new ActionListener() {
+    (GuiPanel.mainFrame.getButton("BTN_PAUSE")).addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(java.awt.event.ActionEvent evt) {
-        JButton pauseButton = (JButton)GuiControls.getComponent("BTN_PAUSE");
+        JButton pauseButton = GuiPanel.mainFrame.getButton("BTN_PAUSE");
         if (pauseButton.getText().equals("Pause")) {
           if (pktTimer != null) {
             pktTimer.stop();
@@ -262,10 +243,7 @@ public class GuiPanel {
     });
 
     // display the frame
-    GuiPanel.mainFrame.pack();
-    GuiPanel.mainFrame.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
-    GuiPanel.mainFrame.setLocationRelativeTo(null);
-    GuiPanel.mainFrame.setVisible(true);
+    GuiPanel.mainFrame.display();
 
     // now setup the debug message handler
     if (GuiPanel.bRunLogger) {
@@ -299,7 +277,7 @@ public class GuiPanel {
     }
 
     // create a timer for updating the statistics
-    Timer statsTimer = new Timer(100, new StatsUpdateListener());
+    statsTimer = new Timer(100, new StatsUpdateListener());
     statsTimer.start();
   }
 
@@ -318,11 +296,11 @@ public class GuiPanel {
   }
   
   private static void setHighlightMode(GraphHighlight mode) {
-    JRadioButton timeSelBtn = (JRadioButton)GuiControls.getComponent("RB_ELAPSED");
-    JRadioButton instrSelBtn = (JRadioButton)GuiControls.getComponent("RB_INSTRUCT");
-    JRadioButton iterSelBtn = (JRadioButton)GuiControls.getComponent("RB_ITER");
-    JRadioButton statSelBtn = (JRadioButton)GuiControls.getComponent("RB_STATUS");
-    JRadioButton noneSelBtn = (JRadioButton)GuiControls.getComponent("RB_NONE");
+    JRadioButton timeSelBtn  = GuiPanel.mainFrame.getRadioButton("RB_ELAPSED");
+    JRadioButton instrSelBtn = GuiPanel.mainFrame.getRadioButton("RB_INSTRUCT");
+    JRadioButton iterSelBtn  = GuiPanel.mainFrame.getRadioButton("RB_ITER");
+    JRadioButton statSelBtn  = GuiPanel.mainFrame.getRadioButton("RB_STATUS");
+    JRadioButton noneSelBtn  = GuiPanel.mainFrame.getRadioButton("RB_NONE");
 
     // turn on the selected mode and turn off all others
     switch(mode) {
@@ -496,11 +474,11 @@ public class GuiPanel {
     @Override
     public void actionPerformed(ActionEvent e) {
       // update statistics
-      ((JTextField)GuiControls.getComponent("TXT_BUFFER")).setText("" + GuiPanel.udpThread.getBufferSize());
-      ((JTextField)GuiControls.getComponent("TXT_PKTSREAD")).setText("" + GuiPanel.udpThread.getPktsRead());
-      ((JTextField)GuiControls.getComponent("TXT_PKTSLOST")).setText("" + GuiPanel.udpThread.getPktsLost());
-      ((JTextField)GuiControls.getComponent("TXT_PROCESSED")).setText("" + GuiPanel.linesRead);
-      ((JTextField)GuiControls.getComponent("TXT_METHODS")).setText("" + CallGraph.getMethodCount());
+      (GuiPanel.mainFrame.getTextField("TXT_BUFFER")).setText("" + GuiPanel.udpThread.getBufferSize());
+      (GuiPanel.mainFrame.getTextField("TXT_PKTSREAD")).setText("" + GuiPanel.udpThread.getPktsRead());
+      (GuiPanel.mainFrame.getTextField("TXT_PKTSLOST")).setText("" + GuiPanel.udpThread.getPktsLost());
+      (GuiPanel.mainFrame.getTextField("TXT_PROCESSED")).setText("" + GuiPanel.linesRead);
+      (GuiPanel.mainFrame.getTextField("TXT_METHODS")).setText("" + CallGraph.getMethodCount());
     }
   }
 
@@ -510,23 +488,20 @@ public class GuiPanel {
       // if Call Graph tab selected, update graph
       if (isCallGraphTabSelected()) {
         if (CallGraph.updateCallGraph(graphMode)) {
-          repackFrame();
+          GuiPanel.mainFrame.repack();
         }
       }
     }
   }
 
-  private static void repackFrame() {
-    GuiPanel.mainFrame.pack();
-    GuiPanel.mainFrame.setSize(framesize);
-  }
-
   private static void loadDebugButtonActionPerformed(java.awt.event.ActionEvent evt) {
+    FileNameExtensionFilter filter = new FileNameExtensionFilter("Text Files", "txt");
+    GuiPanel.fileSelector.setFileFilter(filter);
     GuiPanel.fileSelector.setApproveButtonText("Load");
     GuiPanel.fileSelector.setMultiSelectionEnabled(false);
     String defaultFile = "debug.log";
     GuiPanel.fileSelector.setSelectedFile(new File(defaultFile));
-    int retVal = GuiPanel.fileSelector.showOpenDialog(GuiPanel.mainFrame);
+    int retVal = GuiPanel.fileSelector.showOpenDialog(GuiPanel.mainFrame.getFrame());
     if (retVal == JFileChooser.APPROVE_OPTION) {
       // stop the timers from updating the display
       if (pktTimer != null) {
@@ -564,7 +539,7 @@ public class GuiPanel {
     GuiPanel.fileSelector.setApproveButtonText("Load");
     GuiPanel.fileSelector.setMultiSelectionEnabled(false);
     GuiPanel.fileSelector.setSelectedFile(new File(defaultName + ".json"));
-    int retVal = GuiPanel.fileSelector.showOpenDialog(GuiPanel.mainFrame);
+    int retVal = GuiPanel.fileSelector.showOpenDialog(GuiPanel.mainFrame.getFrame());
     if (retVal == JFileChooser.APPROVE_OPTION) {
       // stop the timers from updating the display
       if (pktTimer != null) {
@@ -604,7 +579,7 @@ public class GuiPanel {
     GuiPanel.fileSelector.setApproveButtonText("Save");
     GuiPanel.fileSelector.setMultiSelectionEnabled(false);
     GuiPanel.fileSelector.setSelectedFile(new File(defaultName + ".json"));
-    int retVal = GuiPanel.fileSelector.showOpenDialog(GuiPanel.mainFrame);
+    int retVal = GuiPanel.fileSelector.showOpenDialog(GuiPanel.mainFrame.getFrame());
     if (retVal == JFileChooser.APPROVE_OPTION) {
       File file = GuiPanel.fileSelector.getSelectedFile();
       String basename = file.getAbsolutePath();
@@ -628,8 +603,13 @@ public class GuiPanel {
   }
   
   private static void formWindowClosing(java.awt.event.WindowEvent evt) {
+    graphTimer.stop();
+    pktTimer.stop();
+    statsTimer.stop();
     listener.exit();
     udpThread.exit();
+    mainFrame.close();
+    System.exit(0);
   }
 
   private static void resetCapturedInput() {
@@ -647,11 +627,11 @@ public class GuiPanel {
     
     // clear the stats
     GuiPanel.linesRead = 0;
-    ((JTextField)GuiControls.getComponent("TXT_BUFFER")).setText("------");
-    ((JTextField)GuiControls.getComponent("TXT_PKTSREAD")).setText("------");
-    ((JTextField)GuiControls.getComponent("TXT_PKTSLOST")).setText("------");
-    ((JTextField)GuiControls.getComponent("TXT_PROCESSED")).setText("------");
-    ((JTextField)GuiControls.getComponent("TXT_METHODS")).setText("------");
+    (GuiPanel.mainFrame.getTextField("TXT_BUFFER")).setText("------");
+    (GuiPanel.mainFrame.getTextField("TXT_PKTSREAD")).setText("------");
+    (GuiPanel.mainFrame.getTextField("TXT_PKTSLOST")).setText("------");
+    (GuiPanel.mainFrame.getTextField("TXT_PROCESSED")).setText("------");
+    (GuiPanel.mainFrame.getTextField("TXT_METHODS")).setText("------");
   }
 
 }
