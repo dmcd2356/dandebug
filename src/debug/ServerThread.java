@@ -11,7 +11,6 @@ import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
-import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
@@ -53,9 +52,10 @@ public final class ServerThread extends Thread implements MyListener {
   private static int        pktsLost;
   private static int        lastPktCount;
   private static Timer      fileTimer;
-  private static String     fileName;
+  private static String     fileName; // file to read from instead of from network (null if network used)
+  private static String     storageFileName;
 
-  public ServerThread(int port, boolean tcp) throws IOException {
+  public ServerThread(int port, boolean tcp, String fname) throws IOException {
     super("ServerThread");
     
     serverPort = port;
@@ -65,6 +65,7 @@ public final class ServerThread extends Thread implements MyListener {
       pktsRead = 0;
       pktsLost = 0;
       fileName = null;
+      storageFileName = null;
 
       // open the communications socket
       if (tcp) {
@@ -76,10 +77,13 @@ public final class ServerThread extends Thread implements MyListener {
       }
 
       // create file to hold the data from receive buffer (so we don't use too much memory)
-      setOutputFile(BUFFER_FILE_NAME);
+      if (fname == null || fname.isEmpty()) {
+        fname = BUFFER_FILE_NAME;
+      }
+      setOutputFile(fname);
       
       // set up file for gui to read from (same file)
-      setInputFile(BUFFER_FILE_NAME);
+      setInputFile(fname);
       
       // create the receive buffer to hold the messages read from the port
       recvBuffer = new LinkedList<>();
@@ -134,6 +138,10 @@ public final class ServerThread extends Thread implements MyListener {
   
   public int getPktsLost() {
     return pktsLost;
+  }
+  
+  public String getOutputFile() {
+    return storageFileName;
   }
   
   public String getNextMessage() {
@@ -193,13 +201,22 @@ public final class ServerThread extends Thread implements MyListener {
     }
   }
 
-  private void setOutputFile(String fname) {
+  public void setOutputFile(String fname) {
+    // ignore if name was not changed
+    if (fname == null || (storageFileName != null && fname.equals(storageFileName))) {
+      return;
+    }
     // remove any existing file
     File file = new File(fname);
     file.delete();
 
     try {
-      System.out.println("bufferedWriter: (port capture) started: " + fname);
+      if (bufferedWriter != null) {
+        System.out.println("bufferedWriter: closing " + storageFileName);
+        bufferedWriter.close();
+      }
+      storageFileName = file.getAbsolutePath();
+      System.out.println("bufferedWriter: port capture saving to: " + fname);
       bufferedWriter = new BufferedWriter(new FileWriter(fname, true));
     } catch (IOException ex) {  // includes FileNotFoundException
       System.out.println(ex.getMessage());

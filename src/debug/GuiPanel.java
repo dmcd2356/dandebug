@@ -36,6 +36,7 @@ public class GuiPanel {
   public enum GraphHighlight { NONE, STATUS, TIME, INSTRUCTION, ITERATION }
 
   private final static GuiControls  mainFrame = new GuiControls();
+  private static PropertiesFile props;
   private static JTabbedPane    tabPanel;
   private static JTextPane      debugTextPane;
   private static JPanel         graphPanel;
@@ -88,19 +89,23 @@ public class GuiPanel {
     mainFrame.newFrame("dandebug", 1200, 600, false);
 
     // create the entries in the main frame
-    mainFrame.makePanel(null, "PNL_CONTROL", "Controls", LEFT, false);
-    mainFrame.makePanel(null, "PNL_STATS", "Statistics", LEFT, false);
-    mainFrame.makePanel(null, "PNL_HIGHLIGHT", "Graph Highlighting", LEFT, true);
+    mainFrame.makePanel (null, "PNL_CONTROL"  , "Controls"          , LEFT, false);
+    mainFrame.makePanel (null, "PNL_STATS"    , "Statistics"        , LEFT, false);
+    mainFrame.makePanel (null, "PNL_HIGHLIGHT", "Graph Highlighting", LEFT, true);
+    mainFrame.makePanel (null, "PNL_LOGGER"   , "Debug Log File"    , LEFT, true);
+    panel = "PNL_LOGGER";
+    mainFrame.makeButton(panel, "BTN_LOGFILE"  , "Set"               , LEFT, false);
+    mainFrame.makeLabel (panel, "LBL_LOGFILE"  , ""                  , LEFT, true);
     tabPanel = mainFrame.makeTabbedPanel(null, "PNL_TABBED", "", LEFT, true);
 
     // now add controls to the sub-panels
     panel = "PNL_CONTROL";
-    mainFrame.makeButton(panel, "BTN_PAUSE"    , "Pause"     , LEFT, false);
-    mainFrame.makeLabel (panel, "LBL_3",         "",           LEFT, true); // dummy to keep even
-    mainFrame.makeButton(panel, "BTN_CLEAR"    , "Clear"     , LEFT, false);
-    mainFrame.makeButton(panel, "BTN_SAVEGRAPH", "Save Graph", LEFT, true);
-    mainFrame.makeButton(panel, "BTN_LOADFILE" , "Load File" , LEFT, false);
+    mainFrame.makeLabel (panel, ""             , ""          , LEFT, false); // dummy
+    mainFrame.makeButton(panel, "BTN_LOADFILE" , "Load File" , LEFT, true);
+    mainFrame.makeButton(panel, "BTN_SAVEGRAPH", "Save Graph", LEFT, false);
     mainFrame.makeButton(panel, "BTN_LOADGRAPH", "Load Graph", LEFT, true);
+    mainFrame.makeButton(panel, "BTN_PAUSE"    , "Pause"     , LEFT, false);
+    mainFrame.makeButton(panel, "BTN_CLEAR"    , "Clear"     , LEFT, true);
 
     panel = "PNL_STATS";
     mainFrame.makeLabel    (panel, "LBL_PORT", portInfo, RIGHT, true);
@@ -211,6 +216,13 @@ public class GuiPanel {
       }
     });
 
+    (GuiPanel.mainFrame.getButton("BTN_LOGFILE")).addActionListener(new ActionListener() {
+      @Override
+      public void actionPerformed(java.awt.event.ActionEvent evt) {
+        setStorageButtonActionPerformed(evt);
+      }
+    });
+
     (GuiPanel.mainFrame.getButton("BTN_CLEAR")).addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(java.awt.event.ActionEvent evt) {
@@ -255,11 +267,16 @@ public class GuiPanel {
       CallGraph.initCallGraph(GuiPanel.graphPanel);
     }
     
+    // check for a properties file
+    props = new PropertiesFile();
+    String logfileName = props.getPropertiesItem("LogFile", "");
+
     // start the UDP listener
     try {
-      GuiPanel.udpThread = new ServerThread(port, tcp);
+      GuiPanel.udpThread = new ServerThread(port, tcp, logfileName);
       GuiPanel.udpThread.start();
       GuiPanel.listener = GuiPanel.udpThread;
+      GuiPanel.mainFrame.getLabel("LBL_LOGFILE").setText(udpThread.getOutputFile());
     } catch (IOException ex) {
       System.out.println(ex.getMessage());
       System.exit(1);
@@ -521,6 +538,42 @@ public class GuiPanel {
       File file = GuiPanel.fileSelector.getSelectedFile();
       udpThread.setInputFile(file.getAbsolutePath());
       GuiPanel.bFileLoading = true;
+
+      // now restart the update timers
+      if (pktTimer != null) {
+        pktTimer.start();
+      }
+      if (graphTimer != null) {
+        graphTimer.start();
+      }
+    }
+  }
+  
+  private static void setStorageButtonActionPerformed(java.awt.event.ActionEvent evt) {
+    FileNameExtensionFilter filter = new FileNameExtensionFilter("Log Files", "log");
+    GuiPanel.fileSelector.setFileFilter(filter);
+    GuiPanel.fileSelector.setApproveButtonText("Set");
+    GuiPanel.fileSelector.setMultiSelectionEnabled(false);
+    GuiPanel.fileSelector.setSelectedFile(new File("debug.log"));
+    int retVal = GuiPanel.fileSelector.showOpenDialog(GuiPanel.mainFrame.getFrame());
+    if (retVal == JFileChooser.APPROVE_OPTION) {
+      // stop the timers from updating the display
+      if (pktTimer != null) {
+        pktTimer.stop();
+      }
+      if (graphTimer != null) {
+        graphTimer.stop();
+      }
+
+      // shut down the port input and specify the new name
+      File file = GuiPanel.fileSelector.getSelectedFile();
+      String fname = file.getAbsolutePath();
+      udpThread.setOutputFile(fname);
+      udpThread.setInputFile(fname);
+      
+      // display the new log file location & save it
+      GuiPanel.mainFrame.getLabel("LBL_LOGFILE").setText(fname);
+      props.setPropertiesItem("LogFile", fname);
 
       // now restart the update timers
       if (pktTimer != null) {
