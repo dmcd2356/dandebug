@@ -77,7 +77,7 @@ public class GuiControls {
     if (mainFrame != null) {
       return;
     }
-    Dimension framesize = new Dimension(height, width);
+    framesize = new Dimension(height, width);
     this.mainFrame = new JFrame(title);
     this.mainFrame.setSize(framesize);
     this.mainFrame.setMinimumSize(framesize);
