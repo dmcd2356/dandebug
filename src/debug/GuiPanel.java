@@ -9,7 +9,9 @@ import java.awt.Dimension;
 import java.awt.Toolkit;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileReader;
 import java.io.IOException;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
@@ -43,14 +45,13 @@ public class GuiPanel {
   private static JFileChooser   fileSelector;
   private static ServerThread   udpThread;
   private static MyListener     listener;
-  private static PacketListener pktListener;
+  private static MsgListener    inputListener;
   private static Timer          pktTimer;
   private static Timer          graphTimer;
   private static Timer          statsTimer;
   private static int            linesRead;
   private static boolean        bRunLogger;
   private static boolean        bRunGraphics;
-  private static boolean        bFileLoading;
   private static GraphHighlight graphMode;
   
   private static final Dimension SCREEN_DIM = Toolkit.getDefaultToolkit().getScreenSize();
@@ -68,7 +69,6 @@ public class GuiPanel {
       GuiPanel.mainFrame.close();
     }
 
-    GuiPanel.bFileLoading = false;
     GuiPanel.bRunLogger = bLogger;
     GuiPanel.bRunGraphics = bGraph;
     if (!bLogger && !bGraph) {
@@ -108,14 +108,14 @@ public class GuiPanel {
     mainFrame.makeButton(panel, "BTN_CLEAR"    , "Clear"     , LEFT, true);
 
     panel = "PNL_STATS";
-    mainFrame.makeLabel    (panel, "LBL_PORT", portInfo, RIGHT, true);
-    mainFrame.makeLabel    (panel, "LBL_1"   ,       "", LEFT, true); // dummy seperator
-    mainFrame.makeTextField(panel, "TXT_BUFFER",    "Buffer",    LEFT, false, "------", false);
+    mainFrame.makeLabel    (panel, "LBL_PORT"     , portInfo   , RIGHT, true);
+    mainFrame.makeLabel    (panel, "LBL_1"        ,  ""        , LEFT, true); // dummy seperator
+    mainFrame.makeTextField(panel, "TXT_QUEUE"    , "Queue"    , LEFT, false, "------", false);
+    mainFrame.makeLabel    (panel, "LBL_2"        ,  ""        , LEFT, true); // dummy seperator
+    mainFrame.makeTextField(panel, "TXT_PKTSREAD" , "Pkts Read", LEFT, false, "------", false);
     mainFrame.makeTextField(panel, "TXT_PROCESSED", "Processed", LEFT, true,  "------", false);
-    mainFrame.makeTextField(panel, "TXT_PKTSLOST",  "Pkts Lost", LEFT, false, "------", false);
-    mainFrame.makeTextField(panel, "TXT_METHODS",   "Methods",   LEFT, true,  "------", false);
-    mainFrame.makeTextField(panel, "TXT_PKTSREAD",  "Pkts Read", LEFT, false, "------", false);
-    mainFrame.makeLabel    (panel, "LBL_2",         "",          LEFT, true); // dummy to keep even
+    mainFrame.makeTextField(panel, "TXT_PKTSLOST" , "Pkts Lost", LEFT, false, "------", false);
+    mainFrame.makeTextField(panel, "TXT_METHODS"  , "Methods"  , LEFT, true,  "------", false);
 
     panel = "PNL_HIGHLIGHT";
     mainFrame.makeRadiobutton(panel, "RB_ELAPSED" , "Elapsed Time"   , LEFT, true, 0);
@@ -159,96 +159,75 @@ public class GuiPanel {
         }
       }
     });
-
     (GuiPanel.mainFrame.getRadioButton("RB_ELAPSED")).addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(java.awt.event.ActionEvent evt) {
         setHighlightMode(GraphHighlight.TIME);
       }
     });
-
     (GuiPanel.mainFrame.getRadioButton("RB_INSTRUCT")).addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(java.awt.event.ActionEvent evt) {
         setHighlightMode(GraphHighlight.INSTRUCTION);
       }
     });
-
     (GuiPanel.mainFrame.getRadioButton("RB_ITER")).addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(java.awt.event.ActionEvent evt) {
         setHighlightMode(GraphHighlight.ITERATION);
       }
     });
-
     (GuiPanel.mainFrame.getRadioButton("RB_STATUS")).addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(java.awt.event.ActionEvent evt) {
         setHighlightMode(GraphHighlight.STATUS);
       }
     });
-
     (GuiPanel.mainFrame.getRadioButton("RB_NONE")).addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(java.awt.event.ActionEvent evt) {
         setHighlightMode(GraphHighlight.NONE);
       }
     });
-
     (GuiPanel.mainFrame.getButton("BTN_SAVEGRAPH")).addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(java.awt.event.ActionEvent evt) {
         saveGraphButtonActionPerformed(evt);
       }
     });
-
     (GuiPanel.mainFrame.getButton("BTN_LOADGRAPH")).addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(java.awt.event.ActionEvent evt) {
         loadGraphButtonActionPerformed(evt);
       }
     });
-
     (GuiPanel.mainFrame.getButton("BTN_LOADFILE")).addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(java.awt.event.ActionEvent evt) {
-        loadDebugButtonActionPerformed(evt);
+        loadFileButtonActionPerformed(evt);
       }
     });
-
     (GuiPanel.mainFrame.getButton("BTN_LOGFILE")).addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(java.awt.event.ActionEvent evt) {
         setStorageButtonActionPerformed(evt);
       }
     });
-
     (GuiPanel.mainFrame.getButton("BTN_CLEAR")).addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(java.awt.event.ActionEvent evt) {
         resetCapturedInput();
       }
     });
-
     (GuiPanel.mainFrame.getButton("BTN_PAUSE")).addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(java.awt.event.ActionEvent evt) {
         JButton pauseButton = GuiPanel.mainFrame.getButton("BTN_PAUSE");
         if (pauseButton.getText().equals("Pause")) {
-          if (pktTimer != null) {
-            pktTimer.stop();
-          }
-          if (graphTimer != null) {
-            graphTimer.stop();
-          }
+          enableUpdateTimers(false);
           pauseButton.setText("Resume");
         } else {
-          if (pktTimer != null) {
-            pktTimer.start();
-          }
-          if (graphTimer != null) {
-            graphTimer.start();
-          }
+          enableUpdateTimers(true);
           pauseButton.setText("Pause");
         }
       }
@@ -270,8 +249,11 @@ public class GuiPanel {
     // check for a properties file
     props = new PropertiesFile();
     String logfileName = props.getPropertiesItem("LogFile", "");
+    if (!logfileName.isEmpty()) {
+      GuiPanel.fileSelector.setCurrentDirectory(new File(logfileName));
+    }
 
-    // start the UDP listener
+    // start the TCP or UDP listener thread
     try {
       GuiPanel.udpThread = new ServerThread(port, tcp, logfileName);
       GuiPanel.udpThread.start();
@@ -282,9 +264,9 @@ public class GuiPanel {
       System.exit(1);
     }
 
-    // create a timer for reading and displaying the messages received
-    GuiPanel.pktListener = new PacketListener();
-    pktTimer = new Timer(5, GuiPanel.pktListener);
+    // create a timer for reading and displaying the messages received (from either network or file)
+    GuiPanel.inputListener = new MsgListener();
+    pktTimer = new Timer(5, GuiPanel.inputListener);
     pktTimer.start();
 
     // create a slow timer for updating the call graph
@@ -310,6 +292,24 @@ public class GuiPanel {
       return true;
     }
     return GuiPanel.tabPanel.getSelectedIndex() == 1;
+  }
+
+  private static void enableUpdateTimers(boolean enable) {
+    if (enable) {
+      if (pktTimer != null) {
+        pktTimer.start();
+      }
+      if (graphTimer != null) {
+        graphTimer.start();
+      }
+    } else {
+      if (pktTimer != null) {
+        pktTimer.stop();
+      }
+      if (graphTimer != null) {
+        graphTimer.stop();
+      }
+    }
   }
   
   private static void setHighlightMode(GraphHighlight mode) {
@@ -366,123 +366,13 @@ public class GuiPanel {
     }
   }
   
-  private class PacketListener implements ActionListener {
+  private class MsgListener implements ActionListener {
     @Override
     public void actionPerformed(ActionEvent e) {
-      // read & process next packet
+      // read & process next message
       String message = GuiPanel.udpThread.getNextMessage();
-      
-      // close file if we are reading from file
-      if (message == null && GuiPanel.bFileLoading == true) {
-        GuiPanel.udpThread.closeInputFile();
-        
-        // also, stop the packet listener
-        if (pktTimer != null) {
-          pktTimer.stop();
-        }
-        GuiPanel.bFileLoading = false;
-      }
-
-      // seperate message into the message type and the message content
-      if (message != null && message.length() > 30) {
-        if (GuiPanel.bRunGraphics) {
-          String linenum = message.substring(0, 8);
-          String timeMin = message.substring(10, 12);
-          String timeSec = message.substring(13, 15);
-          String timeMs  = message.substring(16, 19);
-          String typestr = message.substring(21, 27).toUpperCase().trim();
-          String content = message.substring(29);
-          int  count = 0;
-          long tstamp = 0;
-          try {
-            count = Integer.parseInt(linenum);
-            tstamp = ((Integer.parseInt(timeMin) * 60) + Integer.parseInt(timeSec)) * 1000;
-            tstamp += Integer.parseInt(timeMs);
-          } catch (NumberFormatException ex) {
-            // invalid syntax - skip
-            return;
-          }
-
-          // get the current method that is being executed
-          MethodInfo mthNode = CallGraph.getLastMethod();
-
-          // extract call processing info and send to CallGraph
-          switch (typestr) {
-            case "CALL":
-            {
-              String[] splited = content.split("[\\|\\s]+");
-              String method = "";
-              String parent = "";
-              String icount = "";
-              int insCount = -1;
-              switch (splited.length) {
-                case 0:
-                  return; // invalid syntax - ignore
-                case 1:
-                  method = splited[0].trim();
-                  break;
-                case 2:
-                  method = splited[0].trim();
-                  parent = splited[1].trim();
-                  break;
-                default:
-                case 3:
-                  icount = splited[0].trim();
-                  method = splited[1].trim();
-                  parent = splited[2].trim();
-                  // convert count value to integer value (if invalid, just leave count value at -1)
-                  try {
-                    insCount = Integer.parseUnsignedInt(icount);
-                  } catch (NumberFormatException ex) {
-                    return; // invalid syntax - ignore
-                  }
-                  break;
-              }
-              CallGraph.callGraphAddMethod(tstamp, insCount, method, parent, count);
-              }
-              break;
-            case "RETURN":
-              int insCount;
-              try {
-                insCount = Integer.parseUnsignedInt(content);
-              } catch (NumberFormatException ex) {
-                insCount = -1;
-              }
-              CallGraph.callGraphReturn(tstamp, insCount);
-              break;
-            case "ENTRY":
-              if (content.startsWith("catchException")) {
-                if (mthNode != null) {
-                  mthNode.setExecption(count);
-                }
-              }
-              break;
-            case "ERROR":
-              if (mthNode != null) {
-                mthNode.setError(count);
-              }
-              break;
-            case "UNINST":
-              if (mthNode != null) {
-                String method = content;
-                if (method.endsWith(",")) {
-                  method = method.substring(0, method.length() - 1);
-                }
-                mthNode.addUninstrumented(method);
-              }
-              break;
-            default:
-              break;
-          }
-        }
-          
-        // now send to the debug message display
-        // TODO: extract count and tstamp from message
-        if (GuiPanel.bRunLogger) {
-          Logger.print(message.trim());
-        }
-
-        GuiPanel.linesRead++;
+      if (message != null) {
+        processMessage(message);
       }
     }
   }
@@ -491,7 +381,7 @@ public class GuiPanel {
     @Override
     public void actionPerformed(ActionEvent e) {
       // update statistics
-      (GuiPanel.mainFrame.getTextField("TXT_BUFFER")).setText("" + GuiPanel.udpThread.getBufferSize());
+      (GuiPanel.mainFrame.getTextField("TXT_QUEUE")).setText("" + GuiPanel.udpThread.getQueueSize());
       (GuiPanel.mainFrame.getTextField("TXT_PKTSREAD")).setText("" + GuiPanel.udpThread.getPktsRead());
       (GuiPanel.mainFrame.getTextField("TXT_PKTSLOST")).setText("" + GuiPanel.udpThread.getPktsLost());
       (GuiPanel.mainFrame.getTextField("TXT_PROCESSED")).setText("" + GuiPanel.linesRead);
@@ -511,77 +401,69 @@ public class GuiPanel {
     }
   }
 
-  private static void loadDebugButtonActionPerformed(java.awt.event.ActionEvent evt) {
-    FileNameExtensionFilter filter = new FileNameExtensionFilter("Text Files", "txt");
-    GuiPanel.fileSelector.setFileFilter(filter);
-    GuiPanel.fileSelector.setApproveButtonText("Load");
-    GuiPanel.fileSelector.setMultiSelectionEnabled(false);
-    String defaultFile = "debug.log";
-    GuiPanel.fileSelector.setSelectedFile(new File(defaultFile));
-    int retVal = GuiPanel.fileSelector.showOpenDialog(GuiPanel.mainFrame.getFrame());
-    if (retVal == JFileChooser.APPROVE_OPTION) {
-      // stop the timers from updating the display
-      if (pktTimer != null) {
-        pktTimer.stop();
-      }
-      if (graphTimer != null) {
-        graphTimer.stop();
-      }
-
-      // shut down the port input
-      udpThread.exit();
-
-      // clear the current display
-      resetCapturedInput();
-      
-      // set the file to read from
-      File file = GuiPanel.fileSelector.getSelectedFile();
-      udpThread.setInputFile(file.getAbsolutePath());
-      GuiPanel.bFileLoading = true;
-
-      // now restart the update timers
-      if (pktTimer != null) {
-        pktTimer.start();
-      }
-      if (graphTimer != null) {
-        graphTimer.start();
-      }
-    }
-  }
-  
   private static void setStorageButtonActionPerformed(java.awt.event.ActionEvent evt) {
     FileNameExtensionFilter filter = new FileNameExtensionFilter("Log Files", "log");
     GuiPanel.fileSelector.setFileFilter(filter);
-    GuiPanel.fileSelector.setApproveButtonText("Set");
-    GuiPanel.fileSelector.setMultiSelectionEnabled(false);
     GuiPanel.fileSelector.setSelectedFile(new File("debug.log"));
+    GuiPanel.fileSelector.setMultiSelectionEnabled(false);
+    GuiPanel.fileSelector.setApproveButtonText("Set");
     int retVal = GuiPanel.fileSelector.showOpenDialog(GuiPanel.mainFrame.getFrame());
     if (retVal == JFileChooser.APPROVE_OPTION) {
       // stop the timers from updating the display
-      if (pktTimer != null) {
-        pktTimer.stop();
-      }
-      if (graphTimer != null) {
-        graphTimer.stop();
-      }
+      enableUpdateTimers(false);
 
       // shut down the port input and specify the new name
       File file = GuiPanel.fileSelector.getSelectedFile();
       String fname = file.getAbsolutePath();
-      udpThread.setOutputFile(fname);
-      udpThread.setInputFile(fname);
+      udpThread.setBufferFile(fname);
       
       // display the new log file location & save it
       GuiPanel.mainFrame.getLabel("LBL_LOGFILE").setText(fname);
       props.setPropertiesItem("LogFile", fname);
 
       // now restart the update timers
-      if (pktTimer != null) {
-        pktTimer.start();
+      enableUpdateTimers(true);
+    }
+  }
+  
+  private static void loadFileButtonActionPerformed(java.awt.event.ActionEvent evt) {
+    FileNameExtensionFilter filter = new FileNameExtensionFilter("Log Files", "txt", "log");
+    GuiPanel.fileSelector.setFileFilter(filter);
+    GuiPanel.fileSelector.setSelectedFile(new File("debug.log"));
+    GuiPanel.fileSelector.setMultiSelectionEnabled(false);
+    GuiPanel.fileSelector.setApproveButtonText("Load");
+    int retVal = GuiPanel.fileSelector.showOpenDialog(GuiPanel.mainFrame.getFrame());
+    if (retVal == JFileChooser.APPROVE_OPTION) {
+      // stop the timers from updating the display
+      enableUpdateTimers(false);
+
+      // clear the current display
+      resetCapturedInput();
+      
+      // read the file
+      File file = GuiPanel.fileSelector.getSelectedFile();
+      mainFrame.getLabel("LBL_PORT").setText("read from: " + file.getName());
+      try {
+        String message;
+        BufferedReader in = new BufferedReader(new FileReader(file));
+        while ((message = in.readLine()) != null) {
+          processMessage(message);
+        }
+      } catch (IOException ex) {
+        System.out.println(ex.getMessage());
       }
-      if (graphTimer != null) {
-        graphTimer.start();
+      
+      // update the graphics (if enabled)
+      if (isCallGraphTabSelected()) {
+        if (CallGraph.updateCallGraph(graphMode)) {
+          GuiPanel.mainFrame.repack();
+          int methods = CallGraph.getMethodCount();
+          (GuiPanel.mainFrame.getTextField("TXT_METHODS")).setText("" + methods);
+        }
       }
+      
+      // now restart the update timers
+      enableUpdateTimers(true);
     }
   }
   
@@ -589,18 +471,13 @@ public class GuiPanel {
     String defaultName = "callgraph";
     FileNameExtensionFilter filter = new FileNameExtensionFilter("JSON Files", "json");
     GuiPanel.fileSelector.setFileFilter(filter);
-    GuiPanel.fileSelector.setApproveButtonText("Load");
-    GuiPanel.fileSelector.setMultiSelectionEnabled(false);
     GuiPanel.fileSelector.setSelectedFile(new File(defaultName + ".json"));
+    GuiPanel.fileSelector.setMultiSelectionEnabled(false);
+    GuiPanel.fileSelector.setApproveButtonText("Load");
     int retVal = GuiPanel.fileSelector.showOpenDialog(GuiPanel.mainFrame.getFrame());
     if (retVal == JFileChooser.APPROVE_OPTION) {
       // stop the timers from updating the display
-      if (pktTimer != null) {
-        pktTimer.stop();
-      }
-      if (graphTimer != null) {
-        graphTimer.stop();
-      }
+      enableUpdateTimers(false);
 
       // shut down the port input
       udpThread.exit();
@@ -611,14 +488,10 @@ public class GuiPanel {
       // set the file to read from
       File file = GuiPanel.fileSelector.getSelectedFile();
       CallGraph.callGraphDataRead(file);
+      mainFrame.getLabel("LBL_PORT").setText("read from: " + file.getName());
 
       // now restart the update timers
-      if (pktTimer != null) {
-        pktTimer.start();
-      }
-      if (graphTimer != null) {
-        graphTimer.start();
-      }
+      enableUpdateTimers(true);
     }
   }
   
@@ -680,11 +553,134 @@ public class GuiPanel {
     
     // clear the stats
     GuiPanel.linesRead = 0;
-    (GuiPanel.mainFrame.getTextField("TXT_BUFFER")).setText("------");
+    (GuiPanel.mainFrame.getTextField("TXT_QUEUE")).setText("------");
     (GuiPanel.mainFrame.getTextField("TXT_PKTSREAD")).setText("------");
     (GuiPanel.mainFrame.getTextField("TXT_PKTSLOST")).setText("------");
     (GuiPanel.mainFrame.getTextField("TXT_PROCESSED")).setText("------");
     (GuiPanel.mainFrame.getTextField("TXT_METHODS")).setText("------");
+  }
+
+  private static void processMessage(String message) {
+    // seperate message into the message type and the message content
+    if (message == null || message.length() < 30) {
+      return;
+    }
+
+    if (GuiPanel.bRunGraphics) {
+      // if 8-digit line number omitted, skip it (this was an older format)
+      String linenum = "00000000";
+      if (!message.startsWith("[")) {
+        linenum = message.substring(0, 8);
+        message = message.substring(9);
+      }
+      // make sure we have a valid time stamp & the message length is valid
+      // timestamp = [00:00.000] (followed by a space)
+      if (!message.startsWith("[") || message.charAt(10) != ']' || message.length() < 20) {
+        return; // time stamp missing - invalid format
+      }
+      String timeMin = message.substring(1, 3);
+      String timeSec = message.substring(4, 6);
+      String timeMs  = message.substring(7, 10);
+      // next is the 5-char message type (followed by a space)
+      String typestr = message.substring(12, 17).toUpperCase().trim();
+      // and finally the message content to display
+      String content = message.substring(18);
+      int  linecount = 0;
+      long tstamp = 0;
+      try {
+        linecount = Integer.parseInt(linenum);
+        tstamp = ((Integer.parseInt(timeMin) * 60) + Integer.parseInt(timeSec)) * 1000;
+        tstamp += Integer.parseInt(timeMs);
+      } catch (NumberFormatException ex) {
+        // invalid syntax - skip
+        return;
+      }
+
+      // generate a reconstructed string of the message
+      String newmsg = linenum + " [" + timeMin + ":" + timeSec + "." + timeMs + "] " +
+              typestr + " " + content;
+      
+      // get the current method that is being executed
+      MethodInfo mthNode = CallGraph.getLastMethod();
+
+      // extract call processing info and send to CallGraph
+      switch (typestr) {
+        case "CALL":
+        {
+          String[] splited = content.split("[\\|\\s]+");
+          String method = "";
+          String parent = "";
+          String icount = "";
+          int insCount = -1;
+          switch (splited.length) {
+            case 0:
+              return; // invalid syntax - ignore
+            case 1:
+              method = splited[0].trim();
+              break;
+            case 2:
+              method = splited[0].trim();
+              parent = splited[1].trim();
+              break;
+            default:
+            case 3:
+              icount = splited[0].trim();
+              method = splited[1].trim();
+              parent = splited[2].trim();
+              // convert count value to integer value (if invalid, just leave count value at -1)
+              try {
+                insCount = Integer.parseUnsignedInt(icount);
+              } catch (NumberFormatException ex) {
+                return; // invalid syntax - ignore
+              }
+              break;
+          }
+          CallGraph.callGraphAddMethod(tstamp, insCount, method, parent, linecount);
+          }
+          break;
+        case "RETURN":
+          int insCount;
+          try {
+            insCount = Integer.parseUnsignedInt(content);
+          } catch (NumberFormatException ex) {
+            insCount = -1;
+          }
+          CallGraph.callGraphReturn(tstamp, insCount);
+          break;
+        case "ENTRY":
+          if (content.startsWith("catchException")) {
+            if (mthNode != null) {
+              mthNode.setExecption(linecount);
+            }
+          }
+          break;
+        case "ERROR":
+          if (mthNode != null) {
+            mthNode.setError(linecount);
+          }
+          break;
+        case "UNINST":
+          if (mthNode != null) {
+            String method = content;
+            if (method.endsWith(",")) {
+              method = method.substring(0, method.length() - 1);
+            }
+            mthNode.addUninstrumented(method);
+          }
+          break;
+        default:
+          break;
+      }
+          
+      // now send to the debug message display
+      // TODO: extract count and tstamp from message
+      if (GuiPanel.bRunLogger) {
+        Logger.print(newmsg);
+      }
+
+      GuiPanel.linesRead++;
+      (GuiPanel.mainFrame.getTextField("TXT_PROCESSED")).setText("" + GuiPanel.linesRead);
+    }
   }
 
 }

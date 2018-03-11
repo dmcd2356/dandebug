@@ -5,16 +5,12 @@
  */
 package debug;
 
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileReader;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -22,8 +18,7 @@ import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.LinkedList;
-import java.util.Queue;
+import java.util.concurrent.LinkedBlockingQueue;
 import javax.swing.Timer;
 
 // provides callback interface
@@ -37,36 +32,42 @@ interface MyListener{
  */
 public final class ServerThread extends Thread implements MyListener {
  
-  private static final String BUFFER_FILE_NAME = "debug.log";
+  public static final String BUFFER_FILE_NAME = "debug.log";
+
+  private static LinkedBlockingQueue<String> recvBuffer;
   
-  protected DatagramSocket  dataSocket = null;
-  protected ServerSocket    serverSocket = null;
-  protected Socket          connectionSocket = null;
-  private final int         serverPort;
-  private Queue<String>     recvBuffer;
-  private BufferedReader    inFromClient = null;
-  private BufferedReader    bufferedReader;
-  private BufferedWriter    bufferedWriter;
-  private boolean           running;
-  private static int        pktsRead;
-  private static int        pktsLost;
-  private static int        lastPktCount;
-  private static Timer      fileTimer;
-  private static String     fileName; // file to read from instead of from network (null if network used)
-  private static String     storageFileName;
+  protected static DatagramSocket dataSocket = null;
+  protected static ServerSocket   serverSocket = null;
+  protected static Socket         connectionSocket = null;
+
+  private static int              serverPort;
+  private static boolean          running;
+  private static int              pktsRead;
+  private static int              pktsLost;
+  private static int              lastPktCount;
+  private static String           storageFileName;
+  private static BufferedReader   inFromClient = null;    // TCP input reader
+//  private static BufferedReader   bufferedReader = null;  // msg storage file reader
+//  private static BufferedWriter   bufferedWriter = null;  // msg storage file writer
+//  private static Timer            fileTimer;
+  private static FileSaver        fileSaver;
 
   public ServerThread(int port, boolean tcp, String fname) throws IOException {
     super("ServerThread");
     
     serverPort = port;
+    recvBuffer = new LinkedBlockingQueue<>();
+    
     try {
       // init statistics
       lastPktCount = -1;
       pktsRead = 0;
       pktsLost = 0;
-      fileName = null;
-      storageFileName = null;
+      storageFileName = BUFFER_FILE_NAME;
 
+      // create file to hold the data from receive buffer (so we don't use too much memory)
+      setBufferFile(fname);
+      
       // open the communications socket
       if (tcp) {
         serverSocket = new ServerSocket(serverPort);
@@ -76,49 +77,15 @@ public final class ServerThread extends Thread implements MyListener {
         System.out.println("UDP server started on port: " + serverPort);
       }
 
-      // create file to hold the data from receive buffer (so we don't use too much memory)
-      if (fname == null || fname.isEmpty()) {
-        fname = BUFFER_FILE_NAME;
-      }
-      setOutputFile(fname);
-      
-      // set up file for gui to read from (same file)
-      setInputFile(fname);
-      
-      // create the receive buffer to hold the messages read from the port
-      recvBuffer = new LinkedList<>();
-
-      // create a timer for copying the buffer data to a file
-      fileTimer = new Timer(1, new ServerThread.CopyToFileListener());
-      fileTimer.start();
-
       running = true;
+
     } catch (Exception ex) {
       System.out.println("port " + serverPort + "failed to start");
       System.out.println(ex.getMessage());
       System.exit(1);
     }
   }
-
-  private class CopyToFileListener implements ActionListener {
-    @Override
-    public void actionPerformed(ActionEvent e) {
-      // if backup file is available, save current buffer info to it
-      if (bufferedWriter != null && !recvBuffer.isEmpty()) {
-        try {
-          // read next message from input buffer
-          String message = recvBuffer.remove();
-
-          // append message to file
-          bufferedWriter.write(message + System.getProperty("line.separator"));
-          bufferedWriter.flush();
-        } catch (IOException ex) {
-          System.out.println(ex.getMessage());
-        }
-      }
-    }
-  }
-
+  
   public void clear() {
       // reset statistics and empty the buffer
       lastPktCount = -1;
@@ -128,7 +95,7 @@ public final class ServerThread extends Thread implements MyListener {
       // TODO: flush the bufferedReader
   }
   
-  public int getBufferSize() {
+  public int getQueueSize() {
     return recvBuffer.size();
   }
   
@@ -145,153 +112,48 @@ public final class ServerThread extends Thread implements MyListener {
   }
   
   public String getNextMessage() {
-    if (bufferedReader != null) {
-      try {
-        return bufferedReader.readLine();
-      } catch (IOException ex) {
-        System.out.println(ex.getMessage());
-      }
-    }
-
-    return null;
+    return (fileSaver == null) ? null : fileSaver.getNextMessage();
   }
 
-  public void closeInputFile() {
-    if (bufferedReader != null) {
-      if (ServerThread.fileName == null) {
-        System.out.println("bufferedReader: disabling input from remote");
-      } else {
-        System.out.println("bufferedReader: disabling input from file: " + ServerThread.fileName);
-      }
-      try {
-        bufferedReader.close();
-      } catch (IOException ex) {
-        System.out.println(ex.getMessage());
-        return;
-      }
-      bufferedReader = null;
-      ServerThread.fileName = null;
-    }
-  }
-  
-  public void setInputFile(String fname) {
-    // close the current file reader (if any)
-    closeInputFile();
-    if (fname == null || fname.isEmpty()) {
+  public void setBufferFile(String fname) {
+    // ignore if name was not changed or empty name given
+    if (fname == null || fname.isEmpty() || fname.equals(storageFileName)) {
       return;
     }
-    
-    if (!fname.equals(BUFFER_FILE_NAME)) {
-      ServerThread.fileName = fname;
-    }
-    
-    // make sure file exists
+
+    // remove any existing file and save the full path of the assigned file name
     File file = new File(fname);
-    if (!file.isFile()) {
-      System.out.println("Input file not found: " + file.getAbsolutePath());
-      return;
+    storageFileName = file.getAbsolutePath();
+    if (file.isFile()) {
+      file.delete();
     }
 
-    // attach a file reader to it
-    try {
-      System.out.println("bufferedReader: read from file: " + fname);
-      bufferedReader = new BufferedReader(new FileReader(file));
-    } catch (FileNotFoundException ex) {
-      System.out.println(ex.getMessage());
+    // setup the file to save to
+    if (fileSaver == null) {
+      System.err.println("fileSaver not started yet!");
+    } else {
+      fileSaver.setFile(storageFileName);
     }
   }
 
-  public void setOutputFile(String fname) {
-    // ignore if name was not changed
-    if (fname == null || (storageFileName != null && fname.equals(storageFileName))) {
-      return;
-    }
-    // remove any existing file
-    File file = new File(fname);
-    file.delete();
-
-    try {
-      if (bufferedWriter != null) {
-        System.out.println("bufferedWriter: closing " + storageFileName);
-        bufferedWriter.close();
-      }
-      storageFileName = file.getAbsolutePath();
-      System.out.println("bufferedWriter: port capture saving to: " + fname);
-      bufferedWriter = new BufferedWriter(new FileWriter(fname, true));
-    } catch (IOException ex) {  // includes FileNotFoundException
-      System.out.println(ex.getMessage());
-    }
-  }  
-  
-  private static String formatCounter(int count) {
-    if (count < 0) {
-      return "--------";
-    }
-    String countstr = "00000000" + ((Integer) count).toString();
-    countstr = countstr.substring(countstr.length() - 8);
-    return countstr;
-  }
-  
-  private static String formatTimestamp(long elapsedTime) {
-    // split value into hours, min and secs
-    Long msecs = elapsedTime % 1000;
-    Long secs = (elapsedTime / 1000) % 3600;
-    Long mins = secs / 60;
-    secs %= 60;
-
-    // now stringify it
-    String elapsed = "";
-    elapsed += (mins < 10) ? "0" + mins.toString() : mins.toString();
-    elapsed += ":";
-    elapsed += (secs < 10) ? "0" + secs.toString() : secs.toString();
-    String msecstr = "00" + msecs.toString();
-    msecstr = msecstr.substring(msecstr.length() - 3);
-    elapsed += "." + msecstr;
-    return elapsed;
-  }
-
-  private static String extractMessageFromPacket(DatagramPacket packet) {
-    String message = "";
-    try {
-      // read message from packet
-      byte[] bytes = packet.getData();
-      ByteArrayInputStream byteIn = new ByteArrayInputStream(bytes);
-      DataInputStream dataIn = new DataInputStream(byteIn);
-      message = dataIn.readUTF();
-
-      // keep track of lost packets (1st 8 chars are the incrementing line count)
-      int count = Integer.parseInt(message.substring(0, 8));
-      if (lastPktCount >= 0 && count > lastPktCount + 1) {
-        pktsLost += count - lastPktCount - 1;
-        message = "ERROR : Lost packets: " + (count - lastPktCount - 1);
-      } else {
-        ++pktsRead;
-      }
-      lastPktCount = count;
-    } catch (IOException ex) {
-      System.out.println(ex.getMessage());
-    }
-
-    return message;
-  }
-  
   /**
    * this is the callback to run when exiting
    */
   @Override
   public void exit() {
     running = false;
-    try {
-      System.out.println("bufferedWriter: closing");
-//      bufferedWriter.flush();
-      bufferedWriter.close();
-    } catch (IOException ex) {
-      System.out.println(ex.getMessage());
+    if (fileSaver != null) {
+      fileSaver.exit();
     }
   }
 
   @Override
   public void run() {
+    // start the thread for copying input to file
+    fileSaver = new FileSaver(storageFileName, recvBuffer);
+    Thread t = new Thread(fileSaver);
+    t.start();
+
     while (running) {
       try {
         if (dataSocket != null) {
@@ -345,14 +207,18 @@ public final class ServerThread extends Thread implements MyListener {
         
           // read input from client and add to buffer
           String message = inFromClient.readLine();
-          if (message == null) {
+          if (message != null) {
+            // recvBuffer.add(message);
+            try {
+              recvBuffer.put(message);
+            } catch (InterruptedException ex) { /* ignore */ }
+            ++pktsRead;
+          } else {
             // client disconnected - close the socket so a new connection can be made
             connectionSocket.shutdownInput();
             connectionSocket.close();
             connectionSocket = null;
           }
-          recvBuffer.add(message);
-          ++pktsRead;
         }
       } catch (IOException ex) {
         System.err.println("ERROR: " + ex.getMessage());
@@ -378,4 +244,5 @@ public final class ServerThread extends Thread implements MyListener {
     }
   }
 
+ 
 }
