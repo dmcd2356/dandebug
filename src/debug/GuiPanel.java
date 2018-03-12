@@ -582,7 +582,7 @@ public class GuiPanel {
       String timeSec = message.substring(4, 6);
       String timeMs  = message.substring(7, 10);
       // next is the 5-char message type (followed by a space)
-      String typestr = message.substring(12, 17).toUpperCase().trim();
+      String typestr = message.substring(12, 18).toUpperCase();
       // and finally the message content to display
       String content = message.substring(18);
       int  linecount = 0;
@@ -604,7 +604,7 @@ public class GuiPanel {
       MethodInfo mthNode = CallGraph.getLastMethod();
 
       // extract call processing info and send to CallGraph
-      switch (typestr) {
+      switch (typestr.trim()) {
         case "CALL":
         {
           String[] splited = content.split("[\\|\\s]+");

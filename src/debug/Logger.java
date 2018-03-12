@@ -113,7 +113,7 @@ public class Logger {
     // these are for public consumption
     setTypeColor ("ERROR",  TextColor.Red,    FontType.Bold);
     setTypeColor ("WARN",   TextColor.Orange, FontType.Bold);
-    setTypeColor ("TEST",   TextColor.Brown,  FontType.Italic);
+    setTypeColor ("TEST",   TextColor.Violet, FontType.Italic);
     setTypeColor ("INFO",   TextColor.Black,  FontType.Normal);
     setTypeColor ("ENTRY",  TextColor.Brown,  FontType.Normal);
     setTypeColor ("CALL",   TextColor.Gold,   FontType.Bold);
