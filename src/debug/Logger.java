@@ -105,12 +105,17 @@ public class Logger {
     }
   }
 
+  public static final void printUnformatted(String message) {
+    printRaw("NOFMT", message + NEWLINE);
+  }
+  
   private void setColors () {
     if (debugTextPane == null) {
       return;
     }
 
     // these are for public consumption
+    setTypeColor ("NOFMT",  TextColor.DkGrey, FontType.Italic);
     setTypeColor ("ERROR",  TextColor.Red,    FontType.Bold);
     setTypeColor ("WARN",   TextColor.Orange, FontType.Bold);
     setTypeColor ("TEST",   TextColor.Violet, FontType.Italic);

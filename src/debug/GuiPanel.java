@@ -266,7 +266,7 @@ public class GuiPanel {
 
     // create a timer for reading and displaying the messages received (from either network or file)
     GuiPanel.inputListener = new MsgListener();
-    pktTimer = new Timer(5, GuiPanel.inputListener);
+    pktTimer = new Timer(1, GuiPanel.inputListener);
     pktTimer.start();
 
     // create a slow timer for updating the call graph
@@ -562,7 +562,11 @@ public class GuiPanel {
 
   private static void processMessage(String message) {
     // seperate message into the message type and the message content
-    if (message == null || message.length() < 30) {
+    if (message == null) {
+      return;
+    }
+    if (message.length() < 30) {
+      Logger.printUnformatted(message);
       return;
     }
 
@@ -576,7 +580,8 @@ public class GuiPanel {
       // make sure we have a valid time stamp & the message length is valid
       // timestamp = [00:00.000] (followed by a space)
       if (!message.startsWith("[") || message.charAt(10) != ']' || message.length() < 20) {
-        return; // time stamp missing - invalid format
+        Logger.printUnformatted(message);
+        return;
       }
       String timeMin = message.substring(1, 3);
       String timeSec = message.substring(4, 6);
@@ -584,7 +589,7 @@ public class GuiPanel {
       // next is the 5-char message type (followed by a space)
       String typestr = message.substring(12, 18).toUpperCase();
       // and finally the message content to display
-      String content = message.substring(18);
+      String content = message.substring(20);
       int  linecount = 0;
       long tstamp = 0;
       try {
@@ -593,13 +598,18 @@ public class GuiPanel {
         tstamp += Integer.parseInt(timeMs);
       } catch (NumberFormatException ex) {
         // invalid syntax - skip
+        Logger.printUnformatted(message);
         return;
       }
 
-      // generate a reconstructed string of the message
-      String newmsg = linenum + " [" + timeMin + ":" + timeSec + "." + timeMs + "] " +
-              typestr + " " + content;
-      
+      // send message to the debug display
+      if (GuiPanel.bRunLogger) {
+        Logger.print(linenum + " " + message);
+      }
+          
+      GuiPanel.linesRead++;
+      (GuiPanel.mainFrame.getTextField("TXT_PROCESSED")).setText("" + GuiPanel.linesRead);
+
       // get the current method that is being executed
       MethodInfo mthNode = CallGraph.getLastMethod();
 
@@ -607,30 +617,34 @@ public class GuiPanel {
       switch (typestr.trim()) {
         case "CALL":
         {
-          String[] splited = content.split("[\\|\\s]+");
+          content = content.trim();
+          String[] splited = content.split(" ");
           String method = "";
           String parent = "";
           String icount = "";
           int insCount = -1;
           switch (splited.length) {
             case 0:
-              return; // invalid syntax - ignore
             case 1:
-              method = splited[0].trim();
-              break;
+              Logger.printUnformatted("invalid syntax: 0 length");
+              return; // invalid syntax - ignore
             case 2:
-              method = splited[0].trim();
-              parent = splited[1].trim();
+              method = splited[1].trim();
               break;
-            default:
             case 3:
-              icount = splited[0].trim();
               method = splited[1].trim();
               parent = splited[2].trim();
+              break;
+            default:
+            case 4:
+              icount = splited[1].trim();
+              method = splited[2].trim();
+              parent = splited[3].trim();
               // convert count value to integer value (if invalid, just leave count value at -1)
               try {
                 insCount = Integer.parseUnsignedInt(icount);
               } catch (NumberFormatException ex) {
+                Logger.printUnformatted("invalid syntax (non-integer value): '" + icount + "'");
                 return; // invalid syntax - ignore
               }
               break;
@@ -671,15 +685,6 @@ public class GuiPanel {
         default:
           break;
       }
-          
-      // now send to the debug message display
-      // TODO: extract count and tstamp from message
-      if (GuiPanel.bRunLogger) {
-        Logger.print(newmsg);
-      }
-
-      GuiPanel.linesRead++;
-      (GuiPanel.mainFrame.getTextField("TXT_PROCESSED")).setText("" + GuiPanel.linesRead);
     }
   }
 
