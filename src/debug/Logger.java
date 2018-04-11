@@ -118,9 +118,9 @@ public class Logger {
     setTypeColor ("NOFMT",  TextColor.DkGrey, FontType.Italic);
     setTypeColor ("ERROR",  TextColor.Red,    FontType.Bold);
     setTypeColor ("WARN",   TextColor.Orange, FontType.Bold);
-    setTypeColor ("TEST",   TextColor.Violet, FontType.Italic);
     setTypeColor ("INFO",   TextColor.Black,  FontType.Normal);
     setTypeColor ("ENTRY",  TextColor.Brown,  FontType.Normal);
+    setTypeColor ("AGENT",  TextColor.Violet, FontType.Italic);
     setTypeColor ("CALL",   TextColor.Gold,   FontType.Bold);
     setTypeColor ("RETURN", TextColor.Gold,   FontType.Bold);
     setTypeColor ("UNINST", TextColor.Gold,   FontType.BoldItalic);
