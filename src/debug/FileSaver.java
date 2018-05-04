@@ -99,6 +99,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 
         // output time log started
         String message = "# Logfile started: " + LocalDateTime.now();
+        message = message.replace('T', ' ');
         writer.write(message + System.getProperty("line.separator"));
         writer.flush();
       

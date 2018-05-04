@@ -133,6 +133,26 @@ public final class ServerThread extends Thread implements MyListener {
     }
   }
 
+  public void eraseBufferFile() {
+    // ignore if name was not changed or empty name given
+    if (storageFileName == null || storageFileName.isEmpty()) {
+      return;
+    }
+
+    // remove any existing file and save the full path of the assigned file name
+//    File file = new File(storageFileName);
+//    if (file.isFile()) {
+//      file.delete();
+//    }
+
+    // setup the file to save to (deletes old file first)
+    if (fileSaver == null) {
+      System.err.println("fileSaver not started yet!");
+    } else {
+      fileSaver.setFile(storageFileName);
+    }
+  }
+
   /**
    * this is the callback to run when exiting
    */

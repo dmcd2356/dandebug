@@ -37,6 +37,8 @@ public class GuiPanel {
 
   public enum GraphHighlight { NONE, STATUS, TIME, INSTRUCTION, ITERATION }
 
+  private enum ElapsedMode { OFF, RUN, RESET }
+  
   private final static GuiControls  mainFrame = new GuiControls();
   private static PropertiesFile props;
   private static JTabbedPane    tabPanel;
@@ -50,6 +52,8 @@ public class GuiPanel {
   private static Timer          graphTimer;
   private static Timer          statsTimer;
   private static int            linesRead;
+  private static long           elapsedStart;
+  private static ElapsedMode    elapsedMode;
   private static boolean        bRunLogger;
   private static boolean        bRunGraphics;
   private static GraphHighlight graphMode;
@@ -69,6 +73,8 @@ public class GuiPanel {
       GuiPanel.mainFrame.close();
     }
 
+    GuiPanel.elapsedStart = 0;
+    GuiPanel.elapsedMode = ElapsedMode.OFF;
     GuiPanel.bRunLogger = bLogger;
     GuiPanel.bRunGraphics = bGraph;
     if (!bLogger && !bGraph) {
@@ -94,20 +100,21 @@ public class GuiPanel {
     mainFrame.makePanel (null, "PNL_HIGHLIGHT", "Graph Highlighting", LEFT, true);
     mainFrame.makePanel (null, "PNL_LOGGER"   , "Debug Log File"    , LEFT, true);
     panel = "PNL_LOGGER";
+    mainFrame.makeButton(panel, "BTN_ERASEFILE", "Erase"             , LEFT, false);
     mainFrame.makeButton(panel, "BTN_LOGFILE"  , "Set"               , LEFT, false);
     mainFrame.makeLabel (panel, "LBL_LOGFILE"  , ""                  , LEFT, true);
     tabPanel = mainFrame.makeTabbedPanel(null, "PNL_TABBED", "", LEFT, true);
 
     // now add controls to the sub-panels
     panel = "PNL_CONTROL";
-    mainFrame.makeLabel (panel, ""             , ""          , LEFT, false); // dummy
     mainFrame.makeButton(panel, "BTN_LOADFILE" , "Load File" , LEFT, true);
-    mainFrame.makeButton(panel, "BTN_SAVEGRAPH", "Save Graph", LEFT, false);
-    mainFrame.makeButton(panel, "BTN_LOADGRAPH", "Load Graph", LEFT, true);
+    mainFrame.makeButton(panel, "BTN_LOADGRAPH", "Load Graph", LEFT, false);
+    mainFrame.makeButton(panel, "BTN_SAVEGRAPH", "Save Graph", LEFT, true);
     mainFrame.makeButton(panel, "BTN_PAUSE"    , "Pause"     , LEFT, false);
     mainFrame.makeButton(panel, "BTN_CLEAR"    , "Clear"     , LEFT, true);
 
     panel = "PNL_STATS";
+    mainFrame.makeTextField(panel, "FIELD_ELAPSED", "Elapsed", LEFT, false, "00:00.000", false);
     mainFrame.makeLabel    (panel, "LBL_PORT"     , portInfo   , RIGHT, true);
     mainFrame.makeLabel    (panel, "LBL_1"        ,  ""        , LEFT, true); // dummy seperator
     mainFrame.makeTextField(panel, "TXT_QUEUE"    , "Queue"    , LEFT, false, "------", false);
@@ -124,6 +131,9 @@ public class GuiPanel {
     mainFrame.makeRadiobutton(panel, "RB_STATUS"  , "Status"         , LEFT, true, 0);
     mainFrame.makeRadiobutton(panel, "RB_NONE"    , "Off"            , LEFT, true, 1);
 
+    // disable the Save Graph button (until we actually have a graph)
+    GuiPanel.mainFrame.getButton("BTN_SAVEGRAPH").setEnabled(false);
+    
     // add the debug message panel to the tabs
     if (GuiPanel.bRunLogger) {
       GuiPanel.debugTextPane = new JTextPane();
@@ -155,6 +165,11 @@ public class GuiPanel {
         if (GuiPanel.tabPanel.getSelectedIndex() == 1) { // 1 = the graph tab selection
           if (CallGraph.updateCallGraph(graphMode)) {
             GuiPanel.mainFrame.repack();
+          }
+          
+          // if we captured any call graph info, we can now enable the Save Graph button
+          if (CallGraph.getMethodCount() > 0) {
+            GuiPanel.mainFrame.getButton("BTN_SAVEGRAPH").setEnabled(true);
           }
         }
       }
@@ -205,6 +220,12 @@ public class GuiPanel {
       @Override
       public void actionPerformed(java.awt.event.ActionEvent evt) {
         loadFileButtonActionPerformed(evt);
+      }
+    });
+    (GuiPanel.mainFrame.getButton("BTN_ERASEFILE")).addActionListener(new ActionListener() {
+      @Override
+      public void actionPerformed(java.awt.event.ActionEvent evt) {
+        eraseStorageButtonActionPerformed(evt);
       }
     });
     (GuiPanel.mainFrame.getButton("BTN_LOGFILE")).addActionListener(new ActionListener() {
@@ -294,6 +315,34 @@ public class GuiPanel {
     return GuiPanel.tabPanel.getSelectedIndex() == 1;
   }
 
+  private static void startElapsedTime() {
+    GuiPanel.elapsedStart = System.currentTimeMillis();
+    GuiPanel.elapsedMode = ElapsedMode.RUN;
+    GuiPanel.mainFrame.getTextField("FIELD_ELAPSED").setText("00:00.000");
+  }
+  
+  private static void resetElapsedTime() {
+    GuiPanel.elapsedStart = 0;
+    GuiPanel.elapsedMode = ElapsedMode.RESET;
+    GuiPanel.mainFrame.getTextField("FIELD_ELAPSED").setText("00:00.000");
+  }
+  
+  private static void updateElapsedTime() {
+    if (GuiPanel.elapsedMode == ElapsedMode.RUN) {
+      long elapsed = System.currentTimeMillis() - GuiPanel.elapsedStart;
+      if (elapsed > 0) {
+        Integer msec = (int)(elapsed % 1000);
+        elapsed = elapsed / 1000;
+        Integer secs = (int)(elapsed % 60);
+        Integer mins = (int)(elapsed / 60);
+        String timestamp = ((mins < 10) ? "0" : "") + mins.toString() + ":" +
+                           ((secs < 10) ? "0" : "") + secs.toString() + "." +
+                           ((msec < 10) ? "00" : (msec < 100) ? "0" : "") + msec.toString();
+        GuiPanel.mainFrame.getTextField("FIELD_ELAPSED").setText(timestamp);
+      }
+    }
+  }
+  
   private static void enableUpdateTimers(boolean enable) {
     if (enable) {
       if (pktTimer != null) {
@@ -386,6 +435,9 @@ public class GuiPanel {
       (GuiPanel.mainFrame.getTextField("TXT_PKTSLOST")).setText("" + GuiPanel.udpThread.getPktsLost());
       (GuiPanel.mainFrame.getTextField("TXT_PROCESSED")).setText("" + GuiPanel.linesRead);
       (GuiPanel.mainFrame.getTextField("TXT_METHODS")).setText("" + CallGraph.getMethodCount());
+
+      // update elapsed time if enabled
+      GuiPanel.updateElapsedTime();
     }
   }
 
@@ -401,6 +453,17 @@ public class GuiPanel {
     }
   }
 
+  private static void eraseStorageButtonActionPerformed(java.awt.event.ActionEvent evt) {
+    // stop the timers from updating the display
+    enableUpdateTimers(false);
+
+    // erase the current file selection
+    udpThread.eraseBufferFile();
+      
+    // now restart the update timers
+    enableUpdateTimers(true);
+  }
+  
   private static void setStorageButtonActionPerformed(java.awt.event.ActionEvent evt) {
     FileNameExtensionFilter filter = new FileNameExtensionFilter("Log Files", "log");
     GuiPanel.fileSelector.setFileFilter(filter);
@@ -496,7 +559,6 @@ public class GuiPanel {
   }
   
   private static void saveGraphButtonActionPerformed(java.awt.event.ActionEvent evt) {
-    // TODO: prefix with MM_DD_
     DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd-");
     Date date = new Date();
     String defaultName = dateFormat.format(date) + "callgraph";
@@ -558,6 +620,9 @@ public class GuiPanel {
     (GuiPanel.mainFrame.getTextField("TXT_PKTSLOST")).setText("------");
     (GuiPanel.mainFrame.getTextField("TXT_PROCESSED")).setText("------");
     (GuiPanel.mainFrame.getTextField("TXT_METHODS")).setText("------");
+    
+    // reset the elapsed time
+    GuiPanel.resetElapsedTime();
   }
 
   private static void processMessage(String message) {
@@ -570,46 +635,51 @@ public class GuiPanel {
       return;
     }
 
-    if (GuiPanel.bRunGraphics) {
-      // if 8-digit line number omitted, skip it (this was an older format)
-      String linenum = "00000000";
-      if (!message.startsWith("[")) {
-        linenum = message.substring(0, 8);
-        message = message.substring(9);
-      }
-      // make sure we have a valid time stamp & the message length is valid
-      // timestamp = [00:00.000] (followed by a space)
-      if (!message.startsWith("[") || message.charAt(10) != ']' || message.length() < 20) {
-        Logger.printUnformatted(message);
-        return;
-      }
-      String timeMin = message.substring(1, 3);
-      String timeSec = message.substring(4, 6);
-      String timeMs  = message.substring(7, 10);
-      // next is the 5-char message type (followed by a space)
-      String typestr = message.substring(12, 18).toUpperCase();
-      // and finally the message content to display
-      String content = message.substring(20);
-      int  linecount = 0;
-      long tstamp = 0;
-      try {
-        linecount = Integer.parseInt(linenum);
-        tstamp = ((Integer.parseInt(timeMin) * 60) + Integer.parseInt(timeSec)) * 1000;
-        tstamp += Integer.parseInt(timeMs);
-      } catch (NumberFormatException ex) {
-        // invalid syntax - skip
-        Logger.printUnformatted(message);
-        return;
-      }
+    // read the specific entries from the message
+    String linenum = message.substring(0, 8);   // 8-digit line number
+    String timestr = message.substring(9, 20);  // elapsed time expressed as: [XX:XX.XXX]
+    String typestr = message.substring(21, 27).toUpperCase(); // 5-char message type (followed by a space)
+    String content = message.substring(29);     // message content to display
 
-      // send message to the debug display
-      if (GuiPanel.bRunLogger) {
-        Logger.print(linenum + " " + message);
-      }
+    // make sure we have a valid time stamp & the message length is valid
+    // timestamp = [00:00.000] (followed by a space)
+    if (timestr.charAt(0) != '[' || timestr.charAt(10) != ']') {
+      Logger.printUnformatted(message);
+      return;
+    }
+    String timeMin = timestr.substring(1, 3);
+    String timeSec = timestr.substring(4, 6);
+    String timeMs  = timestr.substring(7, 10);
+    int  linecount = 0;
+    long tstamp = 0;
+    try {
+      linecount = Integer.parseInt(linenum);
+      tstamp = ((Integer.parseInt(timeMin) * 60) + Integer.parseInt(timeSec)) * 1000;
+      tstamp += Integer.parseInt(timeMs);
+    } catch (NumberFormatException ex) {
+      // invalid syntax - skip
+      Logger.printUnformatted(message);
+      return;
+    }
+
+    // if we detect the start of a new debug session, reset our elapsed display
+    // (or if the user hit Clear to reset the info, we will restart timer on the 1st msh received)
+    if (linecount == 0 || GuiPanel.elapsedMode == ElapsedMode.RESET) {
+      GuiPanel.startElapsedTime();
+    }
+    if (GuiPanel.elapsedMode == ElapsedMode.RESET) {
+      Logger.printSeparator();
+    }
+
+    // send message to the debug display
+    if (GuiPanel.bRunLogger) {
+      Logger.print(linecount, timestr, typestr, content);
+    }
           
-      GuiPanel.linesRead++;
-      (GuiPanel.mainFrame.getTextField("TXT_PROCESSED")).setText("" + GuiPanel.linesRead);
+    GuiPanel.linesRead++;
+    (GuiPanel.mainFrame.getTextField("TXT_PROCESSED")).setText("" + GuiPanel.linesRead);
 
+    if (GuiPanel.bRunGraphics) {
       // get the current method that is being executed
       MethodInfo mthNode = CallGraph.getLastMethod();
 

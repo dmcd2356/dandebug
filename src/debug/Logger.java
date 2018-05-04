@@ -7,6 +7,7 @@ package debug;
 
 import java.awt.Color;
 import java.awt.Graphics;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import javax.swing.JTextPane;
 import javax.swing.text.AttributeSet;
@@ -25,8 +26,8 @@ public class Logger {
   // memory use. MAX_TEXT_BUFFER_SIZE defines the upper memory usage when the reduction takes
   // place and REDUCE_BUFFER_SIZE is the minimum number of bytes to reduce it by (it will look
   // for the next NEWLINE char).
-  private final static int MAX_TEXT_BUFFER_SIZE = 1500000;
-  private final static int REDUCE_BUFFER_SIZE   = 200000;
+  private final static int MAX_TEXT_BUFFER_SIZE = 150000;
+  private final static int REDUCE_BUFFER_SIZE   = 50000;
   
   private enum FontType {
     Normal, Bold, Italic, BoldItalic;
@@ -73,38 +74,46 @@ public class Logger {
    * all messages will guarantee the previous line was terminated with a newline,
    * and will preceed the message with a timestamp value and terminate with a newline.
    * 
-   * @param message - the message to display
+   * @param linenum - the line number
+   * @param elapsed - the elapsed time
+   * @param typestr - the type of message to display (all caps)
+   * @param content - the message content
    */
-  public static final void print(String message) {
+  public static final void print(int linenum, String elapsed, String typestr, String content) {
     if (debugTextPane == null) {
       return;
     }
 
-    if (message != null && !message.isEmpty() && message.length() >= 30) {
-      // extract the packet count, elapsed time, and message type from the string
-      String countstr = message.substring(0, 9);
-      String elapsed  = message.substring(9, 21);
-      String typestr  = message.substring(21, 27).toUpperCase();
-      message  = message.substring(29);
-
+    if (linenum >= 0 && elapsed != null && typestr != null && content != null && !content.isEmpty()) {
+      // make sure the linenum is 8-digits in length and the type is 6-chars in length
+      String linestr = "00000000" + linenum;
+      linestr = linestr.substring(linestr.length() - 8);
+      typestr = (typestr + "      ").substring(0, 6);
+      
       // print message (seperate into multiple lines if ASCII newlines are contained in it)
-      if (!message.contains(NEWLINE)) {
-        printRaw("INFO", countstr + " ");
-        printRaw("INFO", elapsed);
-        printRaw(typestr, typestr + ": " + message + NEWLINE);
+      if (!content.contains(NEWLINE)) {
+        printRaw("INFO", linestr + "  ");
+        printRaw("INFO", elapsed + " ");
+        printRaw(typestr, typestr + ": " + content + NEWLINE);
       }
       else {
         // seperate into lines and print each independantly
-        String[] msgarray = message.split(NEWLINE);
+        String[] msgarray = content.split(NEWLINE);
         for (String msg : msgarray) {
-          printRaw("INFO", countstr + " ");
-          printRaw("INFO", elapsed);
+          printRaw("INFO", linestr + "  ");
+          printRaw("INFO", elapsed + " ");
           printRaw(typestr, typestr + ": " + msg + NEWLINE);
         }
       }
     }
   }
 
+  public static final void printSeparator() {
+    String message = "" + LocalDateTime.now();
+    message = message.replace('T', ' ');
+    printRaw("NOFMT", message + "------------------------------------------------------------" + NEWLINE);
+  }
+  
   public static final void printUnformatted(String message) {
     printRaw("NOFMT", message + NEWLINE);
   }
