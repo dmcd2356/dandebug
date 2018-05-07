@@ -250,8 +250,25 @@ public class CallGraph {
     mxCell cell = (mxCell) handler.getGraphComponent().getCellAt(x, y);
     if (cell != null && cell.isVertex()) {
       MethodInfo selected = CallGraph.callGraph.getSelectedNode();
+      String parentList = "";
+      if (selected.getParents().size() < 1) {
+        parentList = "<none>" + NEWLINE;
+      } else {
+        for(String name : selected.getParents()) {
+          if (name != null && !name.isEmpty() && !name.equals("null")) {
+            int offset = name.indexOf('(');
+            if (name.equals(selected.getFullName())) {
+              name = "<self>";
+            } else if (offset > 0) {
+              name = name.substring(0, offset);
+            }
+            parentList += name + NEWLINE;
+          }
+        }
+      }
       JOptionPane.showMessageDialog (null,
           "Method:      " + selected.getFullName() + NEWLINE +
+          "Parent(s):   " + parentList + NEWLINE +
           (selected.getDuration() < 0 ?
               "(never returned)" + NEWLINE :
               "Duration:    " + selected.getDuration() + NEWLINE) +

@@ -49,6 +49,8 @@ public class GuiPanel {
   private static JTextPane      fileTextPane;
   private static JPanel         graphPanel;
   private static JFileChooser   fileSelector;
+  private static Logger         liveLogger;
+  private static Logger         fileLogger;
   private static ServerThread   udpThread;
   private static MyListener     listener;
   private static MsgListener    inputListener;
@@ -128,33 +130,6 @@ public class GuiPanel {
 
     // disable the Save Graph button (until we actually have a graph)
     GuiPanel.mainFrame.getButton("BTN_SAVEGRAPH").setEnabled(false);
-
-    // setup the tab panels
-    Integer tabIndex = 0;
-    Logger debug;
-
-    // add the debug message panel for "live" output to the tabs
-    GuiPanel.liveTextPane = new JTextPane();
-    JScrollPane liveScrollPanel = new JScrollPane(GuiPanel.liveTextPane);
-    liveScrollPanel.setBorder(BorderFactory.createTitledBorder(""));
-    tabPanel.addTab("Live", liveScrollPanel);
-    tabSelect.put(PanelTabs.LIVE, tabIndex++);
-    debug = new Logger(GuiPanel.liveTextPane);
-
-    // add the CallGraph panel to the tabs
-    GuiPanel.graphPanel = new JPanel();
-    JScrollPane graphScrollPanel = new JScrollPane(GuiPanel.graphPanel);
-    tabPanel.addTab("Call Graph", graphScrollPanel);
-    tabSelect.put(PanelTabs.GRAPH, tabIndex++);
-    CallGraph.initCallGraph(GuiPanel.graphPanel);
-
-    // add the debug message panel for "file open" output to the tabs
-//    GuiPanel.fileTextPane = new JTextPane();
-//    JScrollPane fileScrollPanel = new JScrollPane(GuiPanel.fileTextPane);
-//    fileScrollPanel.setBorder(BorderFactory.createTitledBorder(""));
-//    tabPanel.addTab("File", fileScrollPanel);
-//    tabSelect.put(PanelTabs.FILE, tabIndex++);
-//    debug = new Logger(GuiPanel.fileTextPane);
     
     // we need a filechooser for the Save buttons
     GuiPanel.fileSelector = new JFileChooser();
@@ -169,7 +144,8 @@ public class GuiPanel {
     GuiPanel.tabPanel.addChangeListener(new ChangeListener() {
       @Override
       public void stateChanged(ChangeEvent e) {
-        if (GuiPanel.tabPanel.getSelectedIndex() == 1) { // 1 = the graph tab selection
+        // if we switched to the graph display tab, update the graph
+        if (isTabSelection(PanelTabs.GRAPH)) {
           if (CallGraph.updateCallGraph(graphMode)) {
             GuiPanel.mainFrame.repack();
           }
@@ -264,6 +240,33 @@ public class GuiPanel {
     // display the frame
     GuiPanel.mainFrame.display();
 
+    // setup the tab panels
+    Integer tabIndex = 0;
+
+    // add the debug message panel for "live" output to the tabs
+    GuiPanel.liveTextPane = new JTextPane();
+    JScrollPane liveScrollPanel = new JScrollPane(GuiPanel.liveTextPane);
+    liveScrollPanel.setBorder(BorderFactory.createTitledBorder(""));
+    tabPanel.addTab("Live", liveScrollPanel);
+    tabSelect.put(PanelTabs.LIVE, tabIndex++);
+    liveLogger = new Logger("Live", GuiPanel.liveTextPane);
+
+    // add the CallGraph panel to the tabs
+    GuiPanel.graphPanel = new JPanel();
+    JScrollPane graphScrollPanel = new JScrollPane(GuiPanel.graphPanel);
+    tabPanel.addTab("Call Graph", graphScrollPanel);
+    tabSelect.put(PanelTabs.GRAPH, tabIndex++);
+    CallGraph.initCallGraph(GuiPanel.graphPanel);
+
+    // add the debug message panel for "file open" output to the tabs
+//    GuiPanel.fileTextPane = new JTextPane();
+//    JScrollPane fileScrollPanel = new JScrollPane(GuiPanel.fileTextPane);
+//    fileScrollPanel.setBorder(BorderFactory.createTitledBorder(""));
+//    tabPanel.addTab("File", fileScrollPanel);
+//    tabSelect.put(PanelTabs.FILE, tabIndex++);
+//    fileLogger = new Logger("File", GuiPanel.fileTextPane);
+    fileLogger = liveLogger;
+
     // check for a properties file
     props = new PropertiesFile();
     String logfileName = props.getPropertiesItem("LogFile", "");
@@ -297,6 +300,9 @@ public class GuiPanel {
   }
 
   private static boolean isTabSelection(PanelTabs select) {
+    if (GuiPanel.tabPanel == null || tabSelect.isEmpty()) {
+      return false;
+    }
     return GuiPanel.tabPanel.getSelectedIndex() == tabSelect.get(select);
   }
 
@@ -406,7 +412,7 @@ public class GuiPanel {
       // read & process next message
       String message = GuiPanel.udpThread.getNextMessage();
       if (message != null) {
-        processMessage(message);
+        processMessage(liveLogger, message);
       }
     }
   }
@@ -495,7 +501,7 @@ public class GuiPanel {
         String message;
         BufferedReader in = new BufferedReader(new FileReader(file));
         while ((message = in.readLine()) != null) {
-          processMessage(message);
+          processMessage(fileLogger, message);
         }
       } catch (IOException ex) {
         System.out.println(ex.getMessage());
@@ -576,11 +582,21 @@ public class GuiPanel {
   }
   
   private static void formWindowClosing(java.awt.event.WindowEvent evt) {
-    graphTimer.stop();
-    pktTimer.stop();
-    statsTimer.stop();
-    listener.exit();
-    udpThread.exit();
+    if (graphTimer != null) {
+      graphTimer.stop();
+    }
+    if (pktTimer != null) {
+      pktTimer.stop();
+    }
+    if (statsTimer != null) {
+      statsTimer.stop();
+    }
+    if (listener != null) {
+      listener.exit();
+    }
+    if (udpThread != null) {
+      udpThread.exit();
+    }
     mainFrame.close();
     System.exit(0);
   }
@@ -590,7 +606,7 @@ public class GuiPanel {
     udpThread.clear();
 
     // clear the text panel
-    Logger.clear();
+    liveLogger.clear();
     
     // clear the graphics panel
     CallGraph.clear();
@@ -610,26 +626,32 @@ public class GuiPanel {
     GuiPanel.resetElapsedTime();
   }
 
-  private static void processMessage(String message) {
+  private static void processMessage(Logger logger, String message) {
     // seperate message into the message type and the message content
     if (message == null) {
       return;
     }
     if (message.length() < 30) {
-      Logger.printUnformatted(message);
+      logger.printUnformatted(message);
       return;
     }
 
     // read the specific entries from the message
-    String linenum = message.substring(0, 8);   // 8-digit line number
-    String timestr = message.substring(9, 20);  // elapsed time expressed as: [XX:XX.XXX]
-    String typestr = message.substring(21, 27).toUpperCase(); // 5-char message type (followed by a space)
-    String content = message.substring(29);     // message content to display
+    String[] array = message.split("\\s+", 3);
+    if (array.length < 3) {
+      logger.printUnformatted(message);
+      return;
+    }
+    String linenum = array[0];
+    String timestr = array[1];
+    message = array[2]; // typestr may be 5 or 6 chars, so may end in either " : " or ": "
+    String typestr = message.substring(0, 6).toUpperCase(); // 6-char message type (may contain space)
+    String content = message.substring(8);     // message content to display
 
     // make sure we have a valid time stamp & the message length is valid
     // timestamp = [00:00.000] (followed by a space)
     if (timestr.charAt(0) != '[' || timestr.charAt(10) != ']') {
-      Logger.printUnformatted(message);
+      logger.printUnformatted(message);
       return;
     }
     String timeMin = timestr.substring(1, 3);
@@ -643,7 +665,7 @@ public class GuiPanel {
       tstamp += Integer.parseInt(timeMs);
     } catch (NumberFormatException ex) {
       // invalid syntax - skip
-      Logger.printUnformatted(message);
+      logger.printUnformatted(message);
       return;
     }
 
@@ -653,11 +675,11 @@ public class GuiPanel {
       GuiPanel.startElapsedTime();
     }
     if (GuiPanel.elapsedMode == ElapsedMode.RESET) {
-      Logger.printSeparator();
+      logger.printSeparator();
     }
 
     // send message to the debug display
-    Logger.print(linecount, timestr, typestr, content);
+    logger.print(linecount, timestr, typestr, content);
           
     GuiPanel.linesRead++;
     (GuiPanel.mainFrame.getTextField("TXT_PROCESSED")).setText("" + GuiPanel.linesRead);
@@ -678,7 +700,7 @@ public class GuiPanel {
         switch (splited.length) {
           case 0:
           case 1:
-            Logger.printUnformatted("invalid syntax: 0 length");
+            logger.printUnformatted("invalid syntax: 0 length");
             return; // invalid syntax - ignore
           case 2:
             method = splited[1].trim();
@@ -696,7 +718,7 @@ public class GuiPanel {
             try {
               insCount = Integer.parseUnsignedInt(icount);
             } catch (NumberFormatException ex) {
-              Logger.printUnformatted("invalid syntax (non-integer value): '" + icount + "'");
+              logger.printUnformatted("invalid syntax (non-integer value): '" + icount + "'");
               return; // invalid syntax - ignore
             }
             break;

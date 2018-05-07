@@ -43,7 +43,11 @@ public class Logger {
   private static JTextPane       debugTextPane = null;
   private static HashMap<String, FontInfo> messageTypeTbl = new HashMap<>();
 
-  public Logger (JTextPane textpane) {
+  public Logger (String name, JTextPane textpane) {
+    if (textpane == null) {
+      System.out.println("ERROR: Textpane passed to '" + name + "' Logger was null!");
+      System.exit(1);
+    }
     debugTextPane = textpane;
     setColors();
   }
@@ -51,21 +55,17 @@ public class Logger {
   /**
    * clears the display.
    */
-  public static final void clear() {
-    if (debugTextPane != null) {
-      debugTextPane.setText("");
-    }
+  public final void clear() {
+    debugTextPane.setText("");
   }
 
   /**
    * updates the display immediately
    */
-  public static final void updateDisplay () {
-    if (debugTextPane != null) {
-      Graphics graphics = debugTextPane.getGraphics();
-      if (graphics != null) {
-        debugTextPane.update(graphics);
-      }
+  public final void updateDisplay () {
+    Graphics graphics = debugTextPane.getGraphics();
+    if (graphics != null) {
+      debugTextPane.update(graphics);
     }
   }
 
@@ -79,11 +79,7 @@ public class Logger {
    * @param typestr - the type of message to display (all caps)
    * @param content - the message content
    */
-  public static final void print(int linenum, String elapsed, String typestr, String content) {
-    if (debugTextPane == null) {
-      return;
-    }
-
+  public final void print(int linenum, String elapsed, String typestr, String content) {
     if (linenum >= 0 && elapsed != null && typestr != null && content != null && !content.isEmpty()) {
       // make sure the linenum is 8-digits in length and the type is 6-chars in length
       String linestr = "00000000" + linenum;
@@ -108,21 +104,17 @@ public class Logger {
     }
   }
 
-  public static final void printSeparator() {
+  public final void printSeparator() {
     String message = "" + LocalDateTime.now();
     message = message.replace('T', ' ');
     printRaw("NOFMT", message + "------------------------------------------------------------" + NEWLINE);
   }
   
-  public static final void printUnformatted(String message) {
+  public final void printUnformatted(String message) {
     printRaw("NOFMT", message + NEWLINE);
   }
   
   private void setColors () {
-    if (debugTextPane == null) {
-      return;
-    }
-
     // these are for public consumption
     setTypeColor ("NOFMT",  TextColor.DkGrey, FontType.Italic);
     setTypeColor ("ERROR",  TextColor.Red,    FontType.Bold);
@@ -152,12 +144,8 @@ public class Logger {
    * @param size  - the font point size
    * @param ftype - type of font style
    */
-  private static void appendToPane(String msg, TextColor color, String font, int size,
+  private void appendToPane(String msg, TextColor color, String font, int size,
                                    FontType ftype) {
-    if (debugTextPane == null) {
-      return;
-    }
-    
     AttributeSet aset = setTextAttr(color, font, size, ftype);
     int len = debugTextPane.getDocument().getLength();
 
@@ -221,13 +209,8 @@ public class Logger {
    * @param type  - the type of message to display
    * @param message - message contents to display
    */
-  private static void printRaw(String type, String message) {
+  private void printRaw(String type, String message) {
     if (message != null && !message.isEmpty()) {
-      if (debugTextPane == null) {
-        System.out.print(message);
-        return;
-      }
-        
       // set default values (if type was not found)
       TextColor color = TextColor.Black;
       FontType ftype = FontType.Normal;
@@ -253,7 +236,7 @@ public class Logger {
    * @param colorName - name of the color to generate
    * @return corresponding Color value representation
    */
-  private static Color generateColor (TextColor colorName) {
+  private Color generateColor (TextColor colorName) {
     float hue, sat, bright;
     switch (colorName) {
       default:
@@ -337,7 +320,7 @@ public class Logger {
    * @param ftype - type of font style
    * @return the attribute set
    */
-  private static AttributeSet setTextAttr(TextColor color, String font, int size, FontType ftype) {
+  private AttributeSet setTextAttr(TextColor color, String font, int size, FontType ftype) {
     boolean bItalic = false;
     boolean bBold = false;
     if (ftype == FontType.Italic || ftype == FontType.BoldItalic) {
