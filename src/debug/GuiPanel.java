@@ -16,6 +16,7 @@ import java.io.IOException;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.HashMap;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JFileChooser;
@@ -38,11 +39,14 @@ public class GuiPanel {
   public enum GraphHighlight { NONE, STATUS, TIME, INSTRUCTION, ITERATION }
 
   private enum ElapsedMode { OFF, RUN, RESET }
+
+  private enum PanelTabs { LIVE, GRAPH, FILE }
   
   private final static GuiControls  mainFrame = new GuiControls();
   private static PropertiesFile props;
   private static JTabbedPane    tabPanel;
-  private static JTextPane      debugTextPane;
+  private static JTextPane      liveTextPane;
+  private static JTextPane      fileTextPane;
   private static JPanel         graphPanel;
   private static JFileChooser   fileSelector;
   private static ServerThread   udpThread;
@@ -54,9 +58,8 @@ public class GuiPanel {
   private static int            linesRead;
   private static long           elapsedStart;
   private static ElapsedMode    elapsedMode;
-  private static boolean        bRunLogger;
-  private static boolean        bRunGraphics;
   private static GraphHighlight graphMode;
+  private static HashMap<PanelTabs, Integer> tabSelect = new HashMap<>();
   
   private static final Dimension SCREEN_DIM = Toolkit.getDefaultToolkit().getScreenSize();
 
@@ -64,10 +67,8 @@ public class GuiPanel {
  * creates a debug panel to display the Logger messages in.
    * @param port  - the port to use for reading messages
    * @param tcp     - true if use TCP, false to use UDP
-   * @param bLogger - true if enable the debug message display
-   * @param bGraph  - true if enable the graphics display
  */  
-  public void createDebugPanel(int port, boolean tcp, boolean bLogger, boolean bGraph) {
+  public void createDebugPanel(int port, boolean tcp) {
     // if a panel already exists, close the old one
     if (GuiPanel.mainFrame.isValidFrame()) {
       GuiPanel.mainFrame.close();
@@ -75,12 +76,6 @@ public class GuiPanel {
 
     GuiPanel.elapsedStart = 0;
     GuiPanel.elapsedMode = ElapsedMode.OFF;
-    GuiPanel.bRunLogger = bLogger;
-    GuiPanel.bRunGraphics = bGraph;
-    if (!bLogger && !bGraph) {
-      System.out.println("Can't disable both logger and graphics!");
-      System.exit(1);
-    }
     
     GuiPanel.graphMode = GraphHighlight.NONE;
     String portInfo = (tcp ? "TCP" : "UDP") + " port " + port;
@@ -114,7 +109,7 @@ public class GuiPanel {
     mainFrame.makeButton(panel, "BTN_CLEAR"    , "Clear"     , LEFT, true);
 
     panel = "PNL_STATS";
-    mainFrame.makeTextField(panel, "FIELD_ELAPSED", "Elapsed", LEFT, false, "00:00.000", false);
+    mainFrame.makeTextField(panel, "FIELD_ELAPSED", "Elapsed", LEFT, false, "00:00", false);
     mainFrame.makeLabel    (panel, "LBL_PORT"     , portInfo   , RIGHT, true);
     mainFrame.makeLabel    (panel, "LBL_1"        ,  ""        , LEFT, true); // dummy seperator
     mainFrame.makeTextField(panel, "TXT_QUEUE"    , "Queue"    , LEFT, false, "------", false);
@@ -133,22 +128,34 @@ public class GuiPanel {
 
     // disable the Save Graph button (until we actually have a graph)
     GuiPanel.mainFrame.getButton("BTN_SAVEGRAPH").setEnabled(false);
-    
-    // add the debug message panel to the tabs
-    if (GuiPanel.bRunLogger) {
-      GuiPanel.debugTextPane = new JTextPane();
-      JScrollPane fileScrollPanel = new JScrollPane(GuiPanel.debugTextPane);
-      fileScrollPanel.setBorder(BorderFactory.createTitledBorder(""));
-      tabPanel.addTab("Debug Messages", fileScrollPanel);
-    }
+
+    // setup the tab panels
+    Integer tabIndex = 0;
+    Logger debug;
+
+    // add the debug message panel for "live" output to the tabs
+    GuiPanel.liveTextPane = new JTextPane();
+    JScrollPane liveScrollPanel = new JScrollPane(GuiPanel.liveTextPane);
+    liveScrollPanel.setBorder(BorderFactory.createTitledBorder(""));
+    tabPanel.addTab("Live", liveScrollPanel);
+    tabSelect.put(PanelTabs.LIVE, tabIndex++);
+    debug = new Logger(GuiPanel.liveTextPane);
 
     // add the CallGraph panel to the tabs
-    if (GuiPanel.bRunGraphics) {
-      GuiPanel.graphPanel = new JPanel();
-      JScrollPane graphScrollPanel = new JScrollPane(GuiPanel.graphPanel);
-      tabPanel.addTab("Call Graph", graphScrollPanel);
-    }
+    GuiPanel.graphPanel = new JPanel();
+    JScrollPane graphScrollPanel = new JScrollPane(GuiPanel.graphPanel);
+    tabPanel.addTab("Call Graph", graphScrollPanel);
+    tabSelect.put(PanelTabs.GRAPH, tabIndex++);
+    CallGraph.initCallGraph(GuiPanel.graphPanel);
 
+    // add the debug message panel for "file open" output to the tabs
+//    GuiPanel.fileTextPane = new JTextPane();
+//    JScrollPane fileScrollPanel = new JScrollPane(GuiPanel.fileTextPane);
+//    fileScrollPanel.setBorder(BorderFactory.createTitledBorder(""));
+//    tabPanel.addTab("File", fileScrollPanel);
+//    tabSelect.put(PanelTabs.FILE, tabIndex++);
+//    debug = new Logger(GuiPanel.fileTextPane);
+    
     // we need a filechooser for the Save buttons
     GuiPanel.fileSelector = new JFileChooser();
 
@@ -257,16 +264,6 @@ public class GuiPanel {
     // display the frame
     GuiPanel.mainFrame.display();
 
-    // now setup the debug message handler
-    if (GuiPanel.bRunLogger) {
-      Logger debug = new Logger(GuiPanel.debugTextPane);
-    }
-
-    // pass the graph panel to CallGraph for it to use
-    if (GuiPanel.bRunGraphics) {
-      CallGraph.initCallGraph(GuiPanel.graphPanel);
-    }
-    
     // check for a properties file
     props = new PropertiesFile();
     String logfileName = props.getPropertiesItem("LogFile", "");
@@ -291,40 +288,28 @@ public class GuiPanel {
     pktTimer.start();
 
     // create a slow timer for updating the call graph
-    if (GuiPanel.bRunGraphics) {
-      graphTimer = new Timer(1000, new GraphUpdateListener());
-      graphTimer.start();
-    }
+    graphTimer = new Timer(1000, new GraphUpdateListener());
+    graphTimer.start();
 
     // create a timer for updating the statistics
     statsTimer = new Timer(100, new StatsUpdateListener());
     statsTimer.start();
   }
 
-  public static boolean isDebugMsgTabSelected() {
-    if (!GuiPanel.bRunGraphics) {
-      return true;
-    }
-    return GuiPanel.tabPanel.getSelectedIndex() == 0;
-  }
-  
-  public static boolean isCallGraphTabSelected() {
-    if (!GuiPanel.bRunLogger) {
-      return true;
-    }
-    return GuiPanel.tabPanel.getSelectedIndex() == 1;
+  private static boolean isTabSelection(PanelTabs select) {
+    return GuiPanel.tabPanel.getSelectedIndex() == tabSelect.get(select);
   }
 
   private static void startElapsedTime() {
     GuiPanel.elapsedStart = System.currentTimeMillis();
     GuiPanel.elapsedMode = ElapsedMode.RUN;
-    GuiPanel.mainFrame.getTextField("FIELD_ELAPSED").setText("00:00.000");
+    GuiPanel.mainFrame.getTextField("FIELD_ELAPSED").setText("00:00");
   }
   
   private static void resetElapsedTime() {
     GuiPanel.elapsedStart = 0;
     GuiPanel.elapsedMode = ElapsedMode.RESET;
-    GuiPanel.mainFrame.getTextField("FIELD_ELAPSED").setText("00:00.000");
+    GuiPanel.mainFrame.getTextField("FIELD_ELAPSED").setText("00:00");
   }
   
   private static void updateElapsedTime() {
@@ -336,8 +321,8 @@ public class GuiPanel {
         Integer secs = (int)(elapsed % 60);
         Integer mins = (int)(elapsed / 60);
         String timestamp = ((mins < 10) ? "0" : "") + mins.toString() + ":" +
-                           ((secs < 10) ? "0" : "") + secs.toString() + "." +
-                           ((msec < 10) ? "00" : (msec < 100) ? "0" : "") + msec.toString();
+                           ((secs < 10) ? "0" : "") + secs.toString(); // + "." +
+                           //((msec < 10) ? "00" : (msec < 100) ? "0" : "") + msec.toString();
         GuiPanel.mainFrame.getTextField("FIELD_ELAPSED").setText(timestamp);
       }
     }
@@ -410,7 +395,7 @@ public class GuiPanel {
 
     // set the mode flag & update graph
     graphMode = mode;
-    if (isCallGraphTabSelected()) {
+    if (isTabSelection(PanelTabs.GRAPH)) {
       CallGraph.updateCallGraph(graphMode);
     }
   }
@@ -445,7 +430,7 @@ public class GuiPanel {
     @Override
     public void actionPerformed(ActionEvent e) {
       // if Call Graph tab selected, update graph
-      if (isCallGraphTabSelected()) {
+      if (isTabSelection(PanelTabs.GRAPH)) {
         if (CallGraph.updateCallGraph(graphMode)) {
           GuiPanel.mainFrame.repack();
         }
@@ -517,7 +502,7 @@ public class GuiPanel {
       }
       
       // update the graphics (if enabled)
-      if (isCallGraphTabSelected()) {
+      if (isTabSelection(PanelTabs.GRAPH)) {
         if (CallGraph.updateCallGraph(graphMode)) {
           GuiPanel.mainFrame.repack();
           int methods = CallGraph.getMethodCount();
@@ -609,7 +594,7 @@ public class GuiPanel {
     
     // clear the graphics panel
     CallGraph.clear();
-    if (isCallGraphTabSelected()) {
+    if (isTabSelection(PanelTabs.GRAPH)) {
       CallGraph.updateCallGraph(GuiPanel.GraphHighlight.NONE);
     }
     
@@ -672,89 +657,85 @@ public class GuiPanel {
     }
 
     // send message to the debug display
-    if (GuiPanel.bRunLogger) {
-      Logger.print(linecount, timestr, typestr, content);
-    }
+    Logger.print(linecount, timestr, typestr, content);
           
     GuiPanel.linesRead++;
     (GuiPanel.mainFrame.getTextField("TXT_PROCESSED")).setText("" + GuiPanel.linesRead);
 
-    if (GuiPanel.bRunGraphics) {
-      // get the current method that is being executed
-      MethodInfo mthNode = CallGraph.getLastMethod();
+    // get the current method that is being executed
+    MethodInfo mthNode = CallGraph.getLastMethod();
 
-      // extract call processing info and send to CallGraph
-      switch (typestr.trim()) {
-        case "CALL":
-        {
-          content = content.trim();
-          String[] splited = content.split(" ");
-          String method = "";
-          String parent = "";
-          String icount = "";
-          int insCount = -1;
-          switch (splited.length) {
-            case 0:
-            case 1:
-              Logger.printUnformatted("invalid syntax: 0 length");
+    // extract call processing info and send to CallGraph
+    switch (typestr.trim()) {
+      case "CALL":
+      {
+        content = content.trim();
+        String[] splited = content.split(" ");
+        String method = "";
+        String parent = "";
+        String icount = "";
+        int insCount = -1;
+        switch (splited.length) {
+          case 0:
+          case 1:
+            Logger.printUnformatted("invalid syntax: 0 length");
+            return; // invalid syntax - ignore
+          case 2:
+            method = splited[1].trim();
+            break;
+          case 3:
+            method = splited[1].trim();
+            parent = splited[2].trim();
+            break;
+          default:
+          case 4:
+            icount = splited[1].trim();
+            method = splited[2].trim();
+            parent = splited[3].trim();
+            // convert count value to integer value (if invalid, just leave count value at -1)
+            try {
+              insCount = Integer.parseUnsignedInt(icount);
+            } catch (NumberFormatException ex) {
+              Logger.printUnformatted("invalid syntax (non-integer value): '" + icount + "'");
               return; // invalid syntax - ignore
-            case 2:
-              method = splited[1].trim();
-              break;
-            case 3:
-              method = splited[1].trim();
-              parent = splited[2].trim();
-              break;
-            default:
-            case 4:
-              icount = splited[1].trim();
-              method = splited[2].trim();
-              parent = splited[3].trim();
-              // convert count value to integer value (if invalid, just leave count value at -1)
-              try {
-                insCount = Integer.parseUnsignedInt(icount);
-              } catch (NumberFormatException ex) {
-                Logger.printUnformatted("invalid syntax (non-integer value): '" + icount + "'");
-                return; // invalid syntax - ignore
-              }
-              break;
-          }
-          CallGraph.callGraphAddMethod(tstamp, insCount, method, parent, linecount);
-          }
-          break;
-        case "RETURN":
-          int insCount;
-          try {
-            insCount = Integer.parseUnsignedInt(content);
-          } catch (NumberFormatException ex) {
-            insCount = -1;
-          }
-          CallGraph.callGraphReturn(tstamp, insCount);
-          break;
-        case "ENTRY":
-          if (content.startsWith("catchException")) {
-            if (mthNode != null) {
-              mthNode.setExecption(linecount);
             }
+            break;
           }
-          break;
-        case "ERROR":
+        CallGraph.callGraphAddMethod(tstamp, insCount, method, parent, linecount);
+        }
+        break;
+      case "RETURN":
+        int insCount;
+        try {
+          insCount = Integer.parseUnsignedInt(content);
+        } catch (NumberFormatException ex) {
+          insCount = -1;
+        }
+        CallGraph.callGraphReturn(tstamp, insCount);
+        break;
+      case "ENTRY":
+        if (content.startsWith("catchException")) {
           if (mthNode != null) {
-            mthNode.setError(linecount);
+            mthNode.setExecption(linecount);
           }
-          break;
-        case "UNINST":
-          if (mthNode != null) {
-            String method = content;
-            if (method.endsWith(",")) {
-              method = method.substring(0, method.length() - 1);
-            }
-            mthNode.addUninstrumented(method);
+        }
+        break;
+      case "ERROR":
+        if (mthNode != null) {
+          mthNode.setError(linecount);
+        }
+        break;
+      case "UNINST":
+        if (mthNode != null) {
+          String method = content;
+          if (method.endsWith(",")) {
+            method = method.substring(0, method.length() - 1);
           }
-          break;
-        default:
-          break;
-      }
+          mthNode.addUninstrumented(method);
+        }
+        break;
+      default:
+        break;
     }
   }
 

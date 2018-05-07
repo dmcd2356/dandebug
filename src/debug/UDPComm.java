@@ -22,23 +22,13 @@ public class UDPComm {
    */
   public static void main(String[] args) throws IOException {
     // get any arguments passed
-    // -m     = disable the debug message display
-    // -g     = disable the graphics display
     // -t     = use TCP for connection
     // -u     = use UDP for connection (default)
     // <port> = the specified port to use (default is 5000)
     int port = SERVER_PORT;
-    boolean bMessage = true;
-    boolean bGraph = true;
     boolean bTcp = false;
     for (String arg : args) {
       switch (arg) {
-        case "-m":
-          bMessage = false;
-          break;
-        case "-g":
-          bGraph = false;
-          break;
         case "-t":
           bTcp = true;
           break;
@@ -62,7 +52,7 @@ public class UDPComm {
     
     // start the debug message panel
     GuiPanel gui = new GuiPanel();
-    gui.createDebugPanel(port, bTcp, bMessage, bGraph);
+    gui.createDebugPanel(port, bTcp);
   }
   
 }
