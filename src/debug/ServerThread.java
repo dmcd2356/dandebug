@@ -108,6 +108,12 @@ public final class ServerThread extends Thread implements MyListener {
     return storageFileName;
   }
   
+  public void resetInput() {
+    if (fileSaver != null) {
+      fileSaver.resetInput();
+    }
+  }
+
   public String getNextMessage() {
     return (fileSaver == null) ? null : fileSaver.getNextMessage();
   }

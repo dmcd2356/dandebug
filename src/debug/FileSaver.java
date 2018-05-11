@@ -72,6 +72,17 @@ import java.util.concurrent.LinkedBlockingQueue;
 
       return message;
     }
+    
+    public void resetInput() {
+      if (writer != null) {
+        String message = "# Logfile started: " + LocalDateTime.now();
+        message = message.replace('T', ' ');
+        writer.write("----------------------------------------------------------------------" +
+            System.getProperty("line.separator"));
+        writer.write(message + System.getProperty("line.separator"));
+        writer.flush();
+      }
+    }
 
     public static void setFile(String fname) {
       // ignore if name was not changed

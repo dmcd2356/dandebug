@@ -220,6 +220,7 @@ public class GuiPanel {
     (GuiPanel.mainFrame.getButton("BTN_CLEAR")).addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(java.awt.event.ActionEvent evt) {
+        udpThread.resetInput();
         resetCapturedInput();
       }
     });
@@ -670,12 +671,8 @@ public class GuiPanel {
     }
 
     // if we detect the start of a new debug session, reset our elapsed display
-    // (or if the user hit Clear to reset the info, we will restart timer on the 1st msh received)
-    if (linecount == 0 || GuiPanel.elapsedMode == ElapsedMode.RESET) {
+    if (GuiPanel.elapsedMode == ElapsedMode.RESET && linecount == 0) {
       GuiPanel.startElapsedTime();
-    }
-    if (GuiPanel.elapsedMode == ElapsedMode.RESET) {
-      logger.printSeparator();
     }
 
     // send message to the debug display
