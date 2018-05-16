@@ -451,6 +451,9 @@ public class GuiPanel {
 
     // erase the current file selection
     udpThread.eraseBufferFile();
+    
+    // clear the display and buffers
+    resetCapturedInput();
       
     // now restart the update timers
     enableUpdateTimers(true);
