@@ -22,11 +22,11 @@ public class UDPComm {
    */
   public static void main(String[] args) throws IOException {
     // get any arguments passed
-    // -t     = use TCP for connection
-    // -u     = use UDP for connection (default)
+    // -t     = use TCP for connection (default)
+    // -u     = use UDP for connection
     // <port> = the specified port to use (default is 5000)
     int port = SERVER_PORT;
-    boolean bTcp = false;
+    boolean bTcp = true;
     for (String arg : args) {
       switch (arg) {
         case "-t":
